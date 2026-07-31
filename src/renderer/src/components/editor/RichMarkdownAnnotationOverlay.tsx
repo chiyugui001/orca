@@ -18,7 +18,7 @@ type RichMarkdownAnnotationOverlayProps = {
 export function RichMarkdownAnnotationOverlay({
   target,
   popover,
-  markdownSourceLineOffset: _,
+  markdownSourceLineOffset,
   filePath,
   onOpenPopover,
   onCancelPopover,
@@ -58,8 +58,12 @@ export function RichMarkdownAnnotationOverlay({
       {popover ? (
         <DiffCommentPopover
           key={`${popover.startLine ?? popover.lineNumber}:${popover.lineNumber}`}
-          lineNumber={popover.lineNumber}
-          startLine={popover.startLine}
+          lineNumber={popover.lineNumber + markdownSourceLineOffset}
+          startLine={
+            popover.startLine === undefined
+              ? undefined
+              : popover.startLine + markdownSourceLineOffset
+          }
           top={popover.top}
           left={popover.left}
           title={translate(
