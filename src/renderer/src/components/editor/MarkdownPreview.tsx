@@ -85,6 +85,7 @@ import { selectMarkdownTableOfContents } from './markdown-toc-visibility-gate'
 import { MarkdownTableOfContentsPanel } from './MarkdownTableOfContentsPanel'
 import { isMarkdownComment } from '@/lib/diff-comment-compat'
 import { DiffCommentCard } from '../diff-comments/DiffCommentCard'
+import { useMRInlineCommentSubmit } from '../diff-comments/use-mr-inline-comment-submit'
 import {
   formatMarkdownReviewCardQuote,
   formatMarkdownReviewNotes,
@@ -1197,6 +1198,7 @@ export default function MarkdownPreview({
             <MarkdownAnnotationComposer
               lineNumber={range.endLine}
               startLine={range.startLine === range.endLine ? undefined : range.startLine}
+              filePath={sourceRelativePath ?? undefined}
               onCancel={() => setActiveAnnotationBlockKey(null)}
               onSubmit={handleSubmit}
             />
@@ -2042,11 +2044,14 @@ function MarkdownSingleNoteSendMenu({
 }
 
 function MarkdownAnnotationComposer({
+  lineNumber,
+  filePath,
   onCancel,
   onSubmit
 }: {
   lineNumber: number
   startLine?: number
+  filePath?: string
   onCancel: () => void
   onSubmit: (body: string) => Promise<boolean>
 }): React.JSX.Element {
@@ -2054,6 +2059,7 @@ function MarkdownAnnotationComposer({
   const [submitting, setSubmitting] = useState(false)
   const mountedRef = useMountedRef()
   const composerRef = useRef<HTMLDivElement | null>(null)
+  const { hasMRContext, mrSubmitting, submitToMR } = useMRInlineCommentSubmit(lineNumber, filePath)
 
   // Why: scope the add-review-note chord (product B) to the composer subtree like DiffCommentPopover, not window, so other surfaces keep theirs.
   useEffect(() => {
@@ -2072,7 +2078,7 @@ function MarkdownAnnotationComposer({
   const trimmed = body.trim()
 
   const submit = async (): Promise<void> => {
-    if (submitting || !trimmed) {
+    if (submitting || mrSubmitting || !trimmed) {
       return
     }
     setSubmitting(true)
@@ -2090,6 +2096,19 @@ function MarkdownAnnotationComposer({
       }
     }
   }
+
+  const submitToMRComment = async (): Promise<void> => {
+    if (submitting || mrSubmitting || !trimmed) {
+      return
+    }
+    const ok = await submitToMR(trimmed)
+    if (ok && mountedRef.current) {
+      setBody('')
+      onCancel()
+    }
+  }
+
+  const isBusy = submitting || mrSubmitting
 
   return (
     <div
@@ -2128,15 +2147,30 @@ function MarkdownAnnotationComposer({
         rows={3}
       />
       <div className="orca-diff-comment-popover-footer">
-        <Button variant="ghost" size="sm" onClick={onCancel} disabled={submitting}>
+        <Button variant="ghost" size="sm" onClick={onCancel} disabled={isBusy}>
           {translate('auto.components.editor.MarkdownPreview.e4683f70c4', 'Cancel')}
         </Button>
-        <Button size="sm" onClick={() => void submit()} disabled={submitting || !trimmed}>
-          {submitting
-            ? translate('auto.components.editor.MarkdownPreview.d652c87c91', 'Saving…')
-            : translate('auto.components.editor.MarkdownPreview.13f94d760c', 'Add note')}
-          {!submitting && <CornerDownLeft className="ml-1 size-3 opacity-70" />}
-        </Button>
+        <div className="flex items-center gap-1">
+          {hasMRContext && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => void submitToMRComment()}
+              disabled={isBusy || !trimmed}
+            >
+              {mrSubmitting
+                ? translate('auto.components.editor.MarkdownPreview.d652c87c91', 'Saving…')
+                : 'Reply to MR'}
+              {!mrSubmitting && <MessageSquare className="ml-1 size-3 opacity-70" />}
+            </Button>
+          )}
+          <Button size="sm" onClick={() => void submit()} disabled={isBusy || !trimmed}>
+            {submitting
+              ? translate('auto.components.editor.MarkdownPreview.d652c87c91', 'Saving…')
+              : translate('auto.components.editor.MarkdownPreview.13f94d760c', 'Add note')}
+            {!submitting && <CornerDownLeft className="ml-1 size-3 opacity-70" />}
+          </Button>
+        </div>
       </div>
     </div>
   )
