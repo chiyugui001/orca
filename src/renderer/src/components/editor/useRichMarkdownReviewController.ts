@@ -121,6 +121,15 @@ export function useRichMarkdownReviewController({
 
   const clearAnnotationTarget = useCallback((): void => setAnnotationTarget(null), [])
 
+  // Why: must clear the ref IMMEDIATELY (not just on next render) so the
+  // second "+" click on a different block opens a fresh annotation popover
+  // instead of re-opening the stale one with the same line number.
+  const closeAnnotationPopover = useCallback((): void => {
+    annotationPopoverRef.current = null
+    setAnnotationPopover(null)
+    clearAnnotationHighlight()
+  }, [clearAnnotationHighlight])
+
   const clearTransientReviewState = useCallback((): void => {
     clearAttentionTimers()
     clearReviewCopyTimers()
@@ -285,6 +294,7 @@ export function useRichMarkdownReviewController({
     clearAnnotationTarget,
     clearAllAnnotationHighlights,
     clearTransientReviewState,
+    closeAnnotationPopover,
     markdownComments,
     markdownCommentsRef,
     markdownSourceLineOffsetRef,

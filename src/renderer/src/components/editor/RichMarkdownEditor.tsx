@@ -405,10 +405,7 @@ export default function RichMarkdownEditor({
       onEmojiPick={menu.openEmojiMenu}
       onCloseEmojiMenu={() => menu.setEmojiMenu(null)}
       onOpenAnnotationPopover={review.openAnnotationPopover}
-      onCancelAnnotationPopover={() => {
-        review.setAnnotationPopover(null)
-        review.clearAnnotationHighlight()
-      }}
+      onCancelAnnotationPopover={() => review.closeAnnotationPopover()}
       onSubmitAnnotation={review.submitAnnotation}
       onCopyReviewNotes={() => void review.handleCopyMarkdownReviewNotes()}
       onCopyReviewNote={(note) => void review.handleCopyMarkdownReviewNote(note)}
