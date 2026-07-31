@@ -11,7 +11,6 @@ import type { RichMarkdownReviewNotePosition } from './rich-markdown-review-note
 import { findRichMarkdownSelectedTextRanges } from './rich-markdown-review-text-ranges'
 import { getRichMarkdownSelectionVisibleText } from './rich-markdown-visible-text-map'
 import { countRichMarkdownReviewMarkdownLines } from './rich-markdown-review-line-count'
-export { countRichMarkdownReviewMarkdownLines } from './rich-markdown-review-line-count'
 
 const RICH_MARKDOWN_ANNOTATION_BUTTON_SIZE_PX = 24
 const RICH_MARKDOWN_ANNOTATION_EDGE_PADDING_PX = 8
@@ -220,7 +219,48 @@ function getRichMarkdownSelectionRange(editor: Editor): RichMarkdownComposerStat
     ? blocks.filter((block) => block.from <= from && from <= block.to)
     : blocks.filter((block) => from <= block.to && to >= block.from)
   const targetBlocks = selectedBlocks.length > 0 ? selectedBlocks : [blocks[0]!]
-  return getRichMarkdownLineRangeFromBlocks(targetBlocks) ?? { lineNumber: 1 }
+  const baseRange = getRichMarkdownLineRangeFromBlocks(targetBlocks)
+  if (
+    !baseRange ||
+    targetBlocks.length !== 1 ||
+    editor.state.doc.resolve(from).parent.type.name !== 'codeBlock'
+  ) {
+    return baseRange ?? { lineNumber: 1 }
+  }
+  const sl =
+    (baseRange.startLine ?? baseRange.lineNumber) +
+    1 +
+    (
+      editor.state.doc
+        .resolve(from)
+        .parent.textContent.slice(0, editor.state.doc.resolve(from).parentOffset)
+        .match(/\n/g) ?? []
+    ).length
+  if (from === to) {
+    return { lineNumber: sl }
+  }
+  return sl ===
+    (baseRange.startLine ?? baseRange.lineNumber) +
+      1 +
+      (
+        editor.state.doc
+          .resolve(from)
+          .parent.textContent.slice(0, editor.state.doc.resolve(to).parentOffset)
+          .match(/\n/g) ?? []
+      ).length
+    ? { lineNumber: sl }
+    : {
+        startLine: sl,
+        lineNumber:
+          (baseRange.startLine ?? baseRange.lineNumber) +
+          1 +
+          (
+            editor.state.doc
+              .resolve(from)
+              .parent.textContent.slice(0, editor.state.doc.resolve(to).parentOffset)
+              .match(/\n/g) ?? []
+          ).length
+      }
 }
 
 export function hasRichMarkdownCommentForRange(
