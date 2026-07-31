@@ -50,6 +50,8 @@ type RichMarkdownEditorSurfaceProps = {
   markdownReviewContent: string
   worktreeId: string
   filePath: string
+  // Repo-relative path for GitLab MR inline comments (the popover anchors on it).
+  annotationFilePath?: string
   markdownCommentsCount: number
   reviewRailOpen: boolean
   reviewNotesCopied: boolean
@@ -138,6 +140,7 @@ export function RichMarkdownEditorSurface({
   markdownReviewContent,
   worktreeId,
   filePath,
+  annotationFilePath,
   markdownCommentsCount,
   reviewRailOpen,
   reviewNotesCopied,
@@ -307,6 +310,7 @@ export function RichMarkdownEditorSurface({
           target={annotationTarget}
           popover={annotationPopover}
           markdownSourceLineOffset={markdownSourceLineOffset}
+          filePath={annotationFilePath}
           onOpenPopover={onOpenAnnotationPopover}
           onCancelPopover={onCancelAnnotationPopover}
           onSubmit={onSubmitAnnotation}

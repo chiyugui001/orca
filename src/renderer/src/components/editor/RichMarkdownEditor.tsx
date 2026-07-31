@@ -360,6 +360,7 @@ export default function RichMarkdownEditor({
       markdownReviewContent={markdownReviewContent}
       worktreeId={worktreeId}
       filePath={filePath}
+      annotationFilePath={markdownAnnotationFilePath}
       markdownCommentsCount={review.markdownComments.length}
       reviewRailOpen={review.reviewRailOpen}
       reviewNotesCopied={review.reviewNotesCopied}

@@ -7,6 +7,9 @@ type RichMarkdownAnnotationOverlayProps = {
   target: RichMarkdownAnnotationTarget | null
   popover: RichMarkdownAnnotationTarget | null
   markdownSourceLineOffset: number
+  // Repo-relative path; enables the popover's "Reply to MR" inline-comment
+  // button when the active worktree has a linked GitLab MR.
+  filePath?: string
   onOpenPopover: () => void
   onCancelPopover: () => void
   onSubmit: (body: string) => Promise<void>
@@ -16,6 +19,7 @@ export function RichMarkdownAnnotationOverlay({
   target,
   popover,
   markdownSourceLineOffset,
+  filePath,
   onOpenPopover,
   onCancelPopover,
   onSubmit
@@ -68,6 +72,7 @@ export function RichMarkdownAnnotationOverlay({
           )}
           onCancel={onCancelPopover}
           onSubmit={onSubmit}
+          filePath={filePath}
         />
       ) : null}
     </>
