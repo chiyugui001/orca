@@ -371,7 +371,9 @@ type WebGitLabRouteKey =
   | 'updateMRReviewers'
   | 'addMRComment'
   | 'addMRInlineComment'
+  | 'deleteMRComment'
   | 'resolveMRDiscussion'
+  | 'replyMRDiscussion'
   | 'jobTrace'
   | 'retryJob'
   | 'workItemByPath'
@@ -393,7 +395,9 @@ type WebGitLabRuntimeMethod =
   | 'gitlab.updateMRReviewers'
   | 'gitlab.addMRComment'
   | 'gitlab.addMRInlineComment'
+  | 'gitlab.deleteMRComment'
   | 'gitlab.resolveMRDiscussion'
+  | 'gitlab.replyMRDiscussion'
   | 'gitlab.jobTrace'
   | 'gitlab.retryJob'
   | 'gitlab.workItemByPath'
@@ -472,7 +476,9 @@ export const GITLAB_WEB_RPC_METHODS = {
   updateMRReviewers: 'gitlab.updateMRReviewers',
   addMRComment: 'gitlab.addMRComment',
   addMRInlineComment: 'gitlab.addMRInlineComment',
+  deleteMRComment: 'gitlab.deleteMRComment',
   resolveMRDiscussion: 'gitlab.resolveMRDiscussion',
+  replyMRDiscussion: 'gitlab.replyMRDiscussion',
   jobTrace: 'gitlab.jobTrace',
   retryJob: 'gitlab.retryJob',
   workItemByPath: 'gitlab.workItemByPath'
@@ -2352,6 +2358,8 @@ function createGitLabApi(): WebGitLabApi {
       route<WebGitLabResult<'updateMRReviewers'>>(GITLAB_WEB_RPC_METHODS.updateMRReviewers, args),
     addMRComment: (args) =>
       route<WebGitLabResult<'addMRComment'>>(GITLAB_WEB_RPC_METHODS.addMRComment, args),
+    deleteMRComment: (args) =>
+      route<WebGitLabResult<'deleteMRComment'>>(GITLAB_WEB_RPC_METHODS.deleteMRComment, args),
     addMRInlineComment: (args) =>
       route<WebGitLabResult<'addMRInlineComment'>>(GITLAB_WEB_RPC_METHODS.addMRInlineComment, args),
     resolveMRDiscussion: (args) =>
@@ -2359,6 +2367,8 @@ function createGitLabApi(): WebGitLabApi {
         GITLAB_WEB_RPC_METHODS.resolveMRDiscussion,
         args
       ),
+    replyMRDiscussion: (args) =>
+      route<WebGitLabResult<'replyMRDiscussion'>>(GITLAB_WEB_RPC_METHODS.replyMRDiscussion, args),
     jobTrace: (args) => route<WebGitLabResult<'jobTrace'>>(GITLAB_WEB_RPC_METHODS.jobTrace, args),
     retryJob: (args) => route<WebGitLabResult<'retryJob'>>(GITLAB_WEB_RPC_METHODS.retryJob, args),
     workItemByPath: (args) =>

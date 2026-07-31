@@ -2067,6 +2067,12 @@ export type PreloadApi = {
         resolved: boolean
       }
     ) => Promise<GitLabDiscussionResolveResult>
+    replyMRDiscussion: (
+      args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
+    ) => Promise<GitLabCommentResult>
+    deleteMRComment: (
+      args: GitLabRepoSelectorArgs & { iid: number; noteId: number }
+    ) => Promise<{ ok: true } | { ok: false; error: string }>
     jobTrace: (
       args: GitLabRepoSelectorArgs & {
         jobId: number

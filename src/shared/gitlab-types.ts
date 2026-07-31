@@ -187,8 +187,11 @@ export type GitLabMRFile = {
 
 export type GitLabMRInlineCommentInput = {
   body: string
+  // Repo-relative path in the head version of the file.
   path: string
+  // Repo-relative path in the base version (rename/old name). Defaults to `path`.
   oldPath?: string
+  // New-side line number (added/modified/context lines on the modified editor).
   line: number
   baseSha: string
   startSha: string

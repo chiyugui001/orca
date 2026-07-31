@@ -27,6 +27,7 @@ import {
   addMRComment,
   closeMR,
   createIssue,
+  deleteMRComment,
   diagnoseAuth,
   getAuthenticatedViewer,
   getJobTrace,
@@ -45,6 +46,7 @@ import {
   mergeMR,
   reopenMR,
   resolveMRDiscussion,
+  replyMRDiscussion,
   retryJob,
   updateIssue,
   updateMR,
@@ -508,6 +510,42 @@ export function registerGitLabHandlers(store: Store): void {
         args.iid,
         args.discussionId,
         args.resolved,
+        repo.issueSourcePreference,
+        repoConnectionId(repo),
+        undefined,
+        ...localGitOptionArgs(store, repo)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    'gitlab:replyMRDiscussion',
+    async (
+      _event,
+      args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
+    ) => {
+      const repo = assertRegisteredRepo(args, store)
+      return replyMRDiscussion(
+        repo.path,
+        args.iid,
+        args.discussionId,
+        args.body,
+        repo.issueSourcePreference,
+        repoConnectionId(repo),
+        undefined,
+        ...localGitOptionArgs(store, repo)
+      )
+    }
+  )
+
+  ipcMain.handle(
+    'gitlab:deleteMRComment',
+    async (_event, args: GitLabRepoSelectorArgs & { iid: number; noteId: number }) => {
+      const repo = assertRegisteredRepo(args, store)
+      return deleteMRComment(
+        repo.path,
+        args.iid,
+        args.noteId,
         repo.issueSourcePreference,
         repoConnectionId(repo),
         undefined,

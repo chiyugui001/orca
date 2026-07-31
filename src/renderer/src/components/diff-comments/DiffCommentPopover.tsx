@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from 'react'
-import { CornerDownLeft } from 'lucide-react'
+import { CornerDownLeft, MessageSquare } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { useMountedRef } from '@/hooks/useMountedRef'
@@ -10,6 +10,7 @@ import {
 import { translate } from '@/i18n/i18n'
 import { installOpenDraftAddReviewNoteGuard } from '../editor/editor-shortcuts'
 import { resolveDiffCommentPopoverTop } from './diff-comment-popover-position'
+import { useMRInlineCommentSubmit } from './use-mr-inline-comment-submit'
 
 // Why: a DOM sibling overlay rather than a Monaco content widget, so it can own a React auto-resizing textarea.
 
@@ -26,6 +27,9 @@ type Props = {
   submittingLabel?: string
   onCancel: () => void
   onSubmit: (body: string) => Promise<void>
+  // Repo-relative file path; enables the "Reply to MR" inline-comment button
+  // when the active worktree has a linked GitLab MR.
+  filePath?: string
 }
 
 function hasDraftText(body: string): boolean {
@@ -43,7 +47,8 @@ export function DiffCommentPopover({
   submitLabel = 'Add note',
   submittingLabel = 'Saving…',
   onCancel,
-  onSubmit
+  onSubmit,
+  filePath
 }: Props): React.JSX.Element {
   const [body, setBody] = useState('')
   // Why: mirror the draft into a ref so the mousedown listener reads it fresh without re-registering each keystroke.
@@ -60,6 +65,8 @@ export function DiffCommentPopover({
   const labelId = useId()
   // Why: seed at `top` for a correct first paint when there's room below; the layout effect flips it above the line if clipped.
   const [resolvedTop, setResolvedTop] = useState(top)
+
+  const { hasMRContext, mrSubmitting, submitToMR } = useMRInlineCommentSubmit(lineNumber, filePath)
 
   // Why: mirror `top` into a ref so the measure callback stays stable and the ResizeObserver isn't re-mounted each scroll frame.
   const topRef = useRef(top)
@@ -169,7 +176,32 @@ export function DiffCommentPopover({
       }
     }
   }
+
+  const handleSubmitToMR = async (): Promise<void> => {
+    if (submitting || mrSubmitting) {
+      return
+    }
+    const bodyState = getCommentBodySubmitState(body)
+    if (bodyState.status === 'empty') {
+      return
+    }
+    if (bodyState.status === 'too-large-leading-whitespace') {
+      toast.error(
+        translate(
+          'auto.components.diff.comments.DiffCommentPopover.commentTooLarge',
+          'Comment is too large to submit safely.'
+        )
+      )
+      return
+    }
+    const ok = await submitToMR(bodyState.body)
+    if (ok) {
+      setBody('')
+      onCancel()
+    }
+  }
   const canSubmitComment = hasBoundedCommentBodyText(body)
+  const isBusy = submitting || mrSubmitting
 
   return (
     <div
@@ -216,7 +248,7 @@ export function DiffCommentPopover({
             // Why: Shift+Enter inserts a newline; skip isComposing so IME composition Enter doesn't submit a half-typed CJK note.
             if (e.key === 'Enter' && !e.nativeEvent.isComposing && !e.shiftKey) {
               e.preventDefault()
-              if (submitting) {
+              if (isBusy) {
                 return
               }
               void handleSubmit()
@@ -228,10 +260,23 @@ export function DiffCommentPopover({
           <Button variant="ghost" size="sm" onClick={onCancel}>
             {translate('auto.components.diff.comments.DiffCommentPopover.2b3ce6d394', 'Cancel')}
           </Button>
-          <Button size="sm" onClick={handleSubmit} disabled={submitting || !canSubmitComment}>
-            {submitting ? submittingLabel : submitLabel}
-            {!submitting && <CornerDownLeft className="ml-1 size-3 opacity-70" />}
-          </Button>
+          <div className="flex items-center gap-1">
+            {hasMRContext && (
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={handleSubmitToMR}
+                disabled={isBusy || !canSubmitComment}
+              >
+                {mrSubmitting ? submittingLabel : 'Reply to MR'}
+                {!mrSubmitting && <MessageSquare className="ml-1 size-3 opacity-70" />}
+              </Button>
+            )}
+            <Button size="sm" onClick={handleSubmit} disabled={isBusy || !canSubmitComment}>
+              {submitting ? submittingLabel : submitLabel}
+              {!submitting && <CornerDownLeft className="ml-1 size-3 opacity-70" />}
+            </Button>
+          </div>
         </div>
       </div>
     </div>

@@ -962,20 +962,30 @@ describe('gitlab client — MR operations', () => {
       }))
     })
 
-    it('posts an inline discussion with GitLab position fields', async () => {
-      glabExecFileAsyncMock.mockResolvedValueOnce({
-        stdout: JSON.stringify({
-          id: 'discussion-1',
-          notes: [
-            {
-              id: 500,
-              author: { username: 'alice', avatar_url: 'https://example.com/a.png' },
-              body: 'please fix',
-              created_at: '2026-05-05T10:00:00Z',
-              position: { new_path: 'src/app.ts', new_line: 12 }
-            }
-          ]
-        })
+    it('posts an inline discussion with a nested JSON position body', async () => {
+      let capturedBody: { body: string; position: Record<string, unknown> } | undefined
+      glabExecFileAsyncMock.mockImplementationOnce(async (args: string[]) => {
+        const inputIdx = args.indexOf('--input')
+        if (inputIdx !== -1) {
+          // Why: the client writes a temp JSON file; read it before it's unlinked.
+          capturedBody = JSON.parse(
+            (await import('node:fs')).readFileSync(args[inputIdx + 1], 'utf-8')
+          )
+        }
+        return {
+          stdout: JSON.stringify({
+            id: 'discussion-1',
+            notes: [
+              {
+                id: 500,
+                author: { username: 'alice', avatar_url: 'https://example.com/a.png' },
+                body: 'please fix',
+                created_at: '2026-05-05T10:00:00Z',
+                position: { new_path: 'src/app.ts', new_line: 12 }
+              }
+            ]
+          })
+        }
       })
 
       await expect(
@@ -995,41 +1005,29 @@ describe('gitlab client — MR operations', () => {
         )
       ).resolves.toMatchObject({
         ok: true,
-        comment: {
-          id: 500,
-          threadId: 'discussion-1',
-          path: 'src/app.ts',
-          line: 12
-        }
+        comment: { id: 500, threadId: 'discussion-1', path: 'src/app.ts', line: 12 }
       })
 
-      expect(glabExecFileAsyncMock).toHaveBeenCalledWith(
-        [
-          'api',
-          '--hostname',
-          'git.internal',
-          '-X',
-          'POST',
-          'projects/g%2Fp/merge_requests/12/discussions',
-          '-f',
-          'body=please fix',
-          '-f',
-          'position[position_type]=text',
-          '-f',
-          'position[base_sha]=base',
-          '-f',
-          'position[start_sha]=start',
-          '-f',
-          'position[head_sha]=head',
-          '-f',
-          'position[old_path]=src/app.ts',
-          '-f',
-          'position[new_path]=src/app.ts',
-          '-f',
-          'position[new_line]=12'
-        ],
-        {}
-      )
+      const callArgs = glabExecFileAsyncMock.mock.calls[0][0] as string[]
+      // Why: glab -f serializes nested keys flat, so GitLab ignores them; the
+      // client must send a real nested JSON body via --input + Content-Type.
+      expect(callArgs).toContain('-X')
+      expect(callArgs[callArgs.indexOf('-X') + 1]).toBe('POST')
+      expect(callArgs).toContain('--input')
+      expect(callArgs).toContain('Content-Type: application/json')
+      expect(callArgs.some((a) => a.includes('merge_requests/12/discussions'))).toBe(true)
+      expect(capturedBody).toBeDefined()
+      expect(capturedBody!.body).toBe('please fix')
+      expect(capturedBody!.position).toMatchObject({
+        position_type: 'text',
+        base_sha: 'base',
+        start_sha: 'start',
+        head_sha: 'head',
+        old_path: 'src/app.ts',
+        new_path: 'src/app.ts',
+        new_line: 12
+      })
+      expect(capturedBody!.position.old_line).toBeUndefined()
     })
   })
 

@@ -389,6 +389,8 @@ export default function DiffViewer({
             submittingLabel="Posting…"
             onCancel={() => setPopover(null)}
             onSubmit={handleSubmitComment}
+            // Why: repo-relative path anchors the GitLab MR inline comment.
+            filePath={relativePath}
           />
         )}
         {renderLimit.limited ? (

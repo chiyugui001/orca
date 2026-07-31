@@ -1789,7 +1789,7 @@ function CommentRow({
         comment={comment}
         botAuthorOverrides={botAuthorOverrides}
         onStartEdit={canMutateComment && onEditComment ? handleStartEdit : undefined}
-        onDelete={canMutateComment && onDeleteComment ? handleDelete : undefined}
+        onDelete={onDeleteComment ? handleDelete : undefined}
         onQueueForAgent={!isReply ? onQueueForAgent : undefined}
       />
     </div>
@@ -2215,6 +2215,7 @@ export function PRCommentsList({
   resolveCommentsWithAIDisabledReason,
   onAddComment,
   onResolveSelectedCommentsWithAI,
+  onCommentSelectedToMR,
   onReply,
   onResolve,
   onEditComment,
@@ -2231,6 +2232,7 @@ export function PRCommentsList({
   resolveCommentsWithAIDisabledReason?: string
   onAddComment?: (body: string) => Promise<RightPanelCommentSubmitResult>
   onResolveSelectedCommentsWithAI?: (groups: PRCommentGroup[]) => void
+  onCommentSelectedToMR?: (groups: PRCommentGroup[]) => void
   onReply?: (comment: PRComment, body: string) => Promise<RightPanelCommentSubmitResult>
   onResolve?: (threadId: string, resolve: boolean) => boolean | Promise<boolean>
   onEditComment?: (comment: PRComment, body: string) => Promise<boolean>
@@ -2418,6 +2420,34 @@ export function PRCommentsList({
             <span className={presentation.sectionCount}>{comments.length}</span>
           )}
           <div className="-mr-1 ml-auto flex items-center gap-0.5">
+            {onCommentSelectedToMR && comments.length > 0 && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-xs"
+                    className="text-muted-foreground hover:text-foreground"
+                    aria-label="Reply to MR discussion"
+                    disabled={commentsLoading}
+                    onClick={() => {
+                      const threadGroups = groups.filter(
+                        (g): g is Extract<PRCommentGroup, { kind: 'thread' }> =>
+                          g.kind === 'thread' && Boolean(g.threadId)
+                      )
+                      if (threadGroups.length > 0) {
+                        onCommentSelectedToMR?.(threadGroups)
+                      }
+                    }}
+                  >
+                    <MessageSquare className="size-3" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent side="top" sideOffset={4}>
+                  Reply to MR discussion
+                </TooltipContent>
+              </Tooltip>
+            )}
             {canShowResolveWithAI && (
               <>
                 <Tooltip>

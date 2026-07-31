@@ -153,6 +153,14 @@ export const glApi = {
     }
   ): Promise<unknown> => ipcRenderer.invoke('gitlab:resolveMRDiscussion', args),
 
+  replyMRDiscussion: (
+    args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
+  ): Promise<unknown> => ipcRenderer.invoke('gitlab:replyMRDiscussion', args),
+
+  deleteMRComment: (
+    args: GitLabRepoSelectorArgs & { iid: number; noteId: number }
+  ): Promise<unknown> => ipcRenderer.invoke('gitlab:deleteMRComment', args),
+
   jobTrace: (
     args: GitLabRepoSelectorArgs & { jobId: number; projectRef?: unknown }
   ): Promise<unknown> => ipcRenderer.invoke('gitlab:jobTrace', args),

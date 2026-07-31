@@ -1,4 +1,7 @@
 /* eslint-disable max-lines -- co-locates GitLab MR/issue/work-item operations sharing one acquire/release pattern. */
+import { writeFileSync, unlinkSync } from 'node:fs'
+import { join } from 'node:path'
+import { tmpdir } from 'node:os'
 import type {
   ClassifiedError,
   GitLabAssignableUser,
@@ -920,6 +923,46 @@ export async function mergeMR(
   )
 }
 
+export async function deleteMRComment(
+  repoPath: string,
+  iid: number,
+  noteId: number,
+  preference?: IssueSourcePreference,
+  connectionId?: string | null,
+  projectRef?: ProjectRef | null,
+  localGitOptions: LocalGitExecOptions = {}
+): Promise<{ ok: true } | { ok: false; error: string }> {
+  return withProjectRef<{ ok: true } | { ok: false; error: string }>(
+    repoPath,
+    preference,
+    connectionId,
+    projectRef,
+    async (projectRef) => {
+      await acquire()
+      try {
+        await glabExecFileAsync(
+          [
+            'api',
+            ...glabHostnameArgs(projectRef, connectionId),
+            '-X',
+            'DELETE',
+            `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/notes/${noteId}`
+          ],
+          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
+        )
+        return { ok: true }
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err)
+        return { ok: false, error: classifyGlabError(msg).message }
+      } finally {
+        release()
+      }
+    },
+    { ok: false, error: 'Could not resolve GitLab project for this repository' },
+    localGitOptions
+  )
+}
+
 export async function addMRComment(
   repoPath: string,
   iid: number,
@@ -978,6 +1021,69 @@ export async function addMRComment(
   )
 }
 
+export async function replyMRDiscussion(
+  repoPath: string,
+  iid: number,
+  discussionId: string,
+  body: string,
+  preference?: IssueSourcePreference,
+  connectionId?: string | null,
+  projectRef?: ProjectRef | null,
+  localGitOptions: LocalGitExecOptions = {}
+): Promise<{ ok: true; comment: MRComment } | { ok: false; error: string }> {
+  return withProjectRef<{ ok: true; comment: MRComment } | { ok: false; error: string }>(
+    repoPath,
+    preference,
+    connectionId,
+    projectRef,
+    async (projectRef) => {
+      const trimmedDiscussionId = discussionId.trim()
+      if (!trimmedDiscussionId) {
+        return { ok: false, error: 'Discussion id is required' }
+      }
+      await acquire()
+      try {
+        const { stdout } = await glabExecFileAsync(
+          [
+            'api',
+            ...glabHostnameArgs(projectRef, connectionId),
+            '-X',
+            'POST',
+            `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/discussions/${encodeURIComponent(trimmedDiscussionId)}/replies`,
+            '-f',
+            `body=${body}`
+          ],
+          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
+        )
+        const data = JSON.parse(stdout) as {
+          id?: number
+          author?: { username?: string; avatar_url?: string; state?: string } | null
+          body?: string
+          created_at?: string
+        }
+        return {
+          ok: true,
+          comment: {
+            id: data.id ?? Date.now(),
+            author: data.author?.username ?? 'You',
+            authorAvatarUrl: data.author?.avatar_url ?? '',
+            body: data.body ?? body,
+            createdAt: data.created_at ?? new Date().toISOString(),
+            url: '',
+            isBot: data.author?.state === 'bot'
+          }
+        }
+      } catch (err) {
+        return { ok: false, error: err instanceof Error ? err.message : String(err) }
+      } finally {
+        release()
+      }
+    },
+    { ok: false, error: 'Could not resolve GitLab project for this repository' },
+    localGitOptions
+  )
+}
+
 export async function addMRInlineComment(
   repoPath: string,
   iid: number,
@@ -997,33 +1103,42 @@ export async function addMRInlineComment(
       if (!body) {
         return { ok: false, error: 'Comment body is required' }
       }
+      // GitLab position needs repo-relative paths as they appear in the diff.
+      // Renderers already pass repo-relative paths; normalize separators only.
+      const normalizeRepoPath = (p: string): string => p.replace(/\\/g, '/').replace(/^\/+/, '')
+      const apiPath = normalizeRepoPath(input.path)
+      const oldPath = normalizeRepoPath(input.oldPath ?? input.path)
       await acquire()
+      // Why: glab `-f position[base_sha]=x` serializes as a flat JSON key, not a
+      // nested object, so GitLab ignores the position and silently files a general
+      // note (position=null). Send a real nested JSON body via --input instead.
+      const position = {
+        position_type: 'text',
+        base_sha: input.baseSha,
+        start_sha: input.startSha,
+        head_sha: input.headSha,
+        old_path: oldPath,
+        new_path: apiPath,
+        new_line: input.line
+      }
+      const jsonBody = JSON.stringify({ body, position })
+      const tmpFile = join(tmpdir(), `orca-mr-inline-${process.pid}-${Date.now()}.json`)
+      let tmpCleaned = false
       try {
-        const oldPath = input.oldPath ?? input.path
+        writeFileSync(tmpFile, jsonBody, 'utf-8')
+        const glabArgs = [
+          'api',
+          ...glabHostnameArgs(projectRef, connectionId),
+          '-X',
+          'POST',
+          '-H',
+          'Content-Type: application/json',
+          `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/discussions`,
+          '--input',
+          tmpFile
+        ]
         const { stdout } = await glabExecFileAsync(
-          [
-            'api',
-            ...glabHostnameArgs(projectRef, connectionId),
-            '-X',
-            'POST',
-            `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/discussions`,
-            '-f',
-            `body=${body}`,
-            '-f',
-            'position[position_type]=text',
-            '-f',
-            `position[base_sha]=${input.baseSha}`,
-            '-f',
-            `position[start_sha]=${input.startSha}`,
-            '-f',
-            `position[head_sha]=${input.headSha}`,
-            '-f',
-            `position[old_path]=${oldPath}`,
-            '-f',
-            `position[new_path]=${input.path}`,
-            '-f',
-            `position[new_line]=${input.line}`
-          ],
+          glabArgs,
           glabRepoExecOptions(repoPath, connectionId, localGitOptions)
         )
         const data = JSON.parse(stdout) as {
@@ -1033,7 +1148,12 @@ export async function addMRInlineComment(
             author?: { username?: string; avatar_url?: string; state?: string } | null
             body?: string
             created_at?: string
-            position?: { new_path?: string; new_line?: number } | null
+            position?: {
+              new_path?: string
+              new_line?: number
+              old_path?: string
+              old_line?: number
+            } | null
           }[]
         }
         const note = data.notes?.[0]
@@ -1049,14 +1169,32 @@ export async function addMRInlineComment(
             threadId: data.id,
             isResolved: false,
             isBot: note?.author?.state === 'bot',
-            path: note?.position?.new_path ?? input.path,
+            path: note?.position?.new_path ?? apiPath,
             line: note?.position?.new_line ?? input.line
           }
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err)
-        return { ok: false, error: classifyGlabError(msg).message }
+        // Why: glab failures carry the GitLab API error body on err.stderr/stdout;
+        // surface it raw so 422 "position invalid" reasons are visible.
+        const e = err as { message?: string; stderr?: string; stdout?: string }
+        const rawStderr = e.stderr ?? ''
+        const rawStdout = e.stdout ?? ''
+        const msg = e.message ?? String(err)
+        const classified = classifyGlabError(msg)
+        const errorDetail =
+          rawStderr || rawStdout
+            ? `${classified.message} | raw: ${rawStderr || rawStdout}`.trim()
+            : classified.message
+        return { ok: false, error: errorDetail }
       } finally {
+        if (!tmpCleaned) {
+          try {
+            unlinkSync(tmpFile)
+          } catch {
+            /* ignore */
+          }
+          tmpCleaned = true
+        }
         release()
       }
     },

@@ -92,6 +92,7 @@ export function DiffSectionBody({
           submittingLabel="Posting…"
           onCancel={onCancelComment}
           onSubmit={onSubmitComment}
+          filePath={'path' in section ? section.path : undefined}
         />
       ) : null}
       {section.loading ? (
