@@ -67,6 +67,21 @@ describe('getMarkdownRichModeUnsupportedMessage', () => {
     ).toBeNull()
   })
 
+  it('reports reference-style link definitions as the reference-links reason', () => {
+    const message = getMarkdownRichModeUnsupportedMessage(
+      '[ref]: https://example.com\n\nSee [ref].\n'
+    )
+    expect(message).not.toBeNull()
+    expect(message).toMatch(/reference-style links/)
+  })
+
+  it('reports footnote definitions as the footnotes reason, not as reference-style links', () => {
+    const message = getMarkdownRichModeUnsupportedMessage('Body[^id].\n\n[^id]: a footnote\n')
+    expect(message).not.toBeNull()
+    expect(message).toMatch(/footnotes/)
+    expect(message).not.toMatch(/reference-style links/)
+  })
+
   it('strips newline-heavy fenced code without splitting the full body', () => {
     const split = vi.spyOn(String.prototype, 'split')
     const content = `${'```tsx\n<Widget />\n```\n'.repeat(10_000)}# Tail\n`

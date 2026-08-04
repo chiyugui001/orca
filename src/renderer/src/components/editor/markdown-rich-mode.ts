@@ -36,7 +36,10 @@ const UNSUPPORTED_PATTERNS: UnsupportedMatch[] = [
         'Editable only in code mode because this file contains reference-style links.'
       )
     },
-    pattern: /^\[[^\]]+\]:\s+\S+/m
+    // Why: footnote definitions look like `[^id]: ...` and would otherwise
+    // match a reference-style link definition — exclude a leading `^` so
+    // footnotes are reported as footnotes, not as reference-style links.
+    pattern: /^\[[^\]^][^\]]*\]:\s+\S+/m
   },
   {
     reason: 'footnotes',
