@@ -103,7 +103,7 @@ describe('UpdateCard Windows signature failures', () => {
     expect(screen.queryByText(message)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Check official releases' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/chiyugui001/orca/releases')
+    expect(openUrl).toHaveBeenCalledWith('https://github.com/chiyugui001/orca-releases/releases')
     expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining('/tag/'))
   })
 
@@ -247,7 +247,7 @@ describe('UpdateCard Linux package-install recovery', () => {
 
     fireEvent.click(screen.getByRole('button', { name: 'Download Manually' }))
     expect(openUrl).toHaveBeenCalledWith(
-      'https://github.com/chiyugui001/orca/releases/tag/v1.4.200'
+      'https://github.com/chiyugui001/orca-releases/releases/tag/v1.4.200'
     )
   })
 
