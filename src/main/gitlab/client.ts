@@ -42,6 +42,7 @@ import {
   type LocalGitExecOptions,
   type ProjectRef
 } from './gl-utils'
+import { rememberGlabKnownHosts } from './gitlab-known-host-probe'
 import type { IssueListState } from './issues'
 import {
   hasHostedReviewLocalGitOptions,
@@ -103,6 +104,8 @@ export async function diagnoseAuth(): Promise<GitLabAuthDiagnostic> {
     })
     const output = `${stdout}\n${stderr}`
     const hosts = parseGlabAuthStatusHosts(output)
+    // Why: refreshing auth must advance the provider cache key past a stale null result.
+    rememberGlabKnownHosts(hosts)
     return {
       glabAvailable: true,
       authenticated:

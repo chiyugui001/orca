@@ -10,6 +10,7 @@ import {
   createExistingWorktreeWorkerTerminal,
   createWorkerWorktree,
   monitorWorkerSetup,
+  requireWorkerAuthority,
   type WorkerEffect,
   type WorkerSetupReceipt
 } from './orchestration-worker-topology'
@@ -235,19 +236,15 @@ export const ORCHESTRATION_WORKER_START_METHODS: RpcMethod[] = [
               : `Agent did not become ready (${wait.status}).`
           )
         }
-        const paneKey = runtime.getTerminalPaneKey(terminalHandle)
-        const processIncarnation = runtime.getTerminalProcessIncarnation(terminalHandle)
-        if (!paneKey || !processIncarnation) {
-          throw new Error('stable_pane_required')
-        }
+        const terminalAuthority = requireWorkerAuthority(runtime, terminalHandle)
         const capability = db.prepareStartingWorkerAuthority({
           dispatchId: started.dispatch.id,
           handle: terminalHandle,
-          paneKey,
-          processIncarnation,
+          ...terminalAuthority,
           worktreeId: resolvedWorktree.id,
           effects,
-          setupState: setupReceipt.state
+          setupState: setupReceipt.state,
+          terminalOwnership: params.terminal ? 'external' : 'created'
         })
 
         failedStage = 'dispatch_input'

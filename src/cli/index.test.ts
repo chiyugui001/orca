@@ -306,6 +306,20 @@ describe('orca root help', () => {
     logSpy.mockRestore()
   })
 
+  it('advertises host-local account management', async () => {
+    const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
+
+    await main([], '/tmp/repo')
+
+    expect(logSpy.mock.calls.flat().join('\n')).toContain(
+      'account add               Add a managed Claude or Codex account on this Orca host'
+    )
+    expect(logSpy.mock.calls.flat().join('\n')).toContain(
+      'account list              List managed Claude and Codex accounts on this Orca host'
+    )
+    logSpy.mockRestore()
+  })
+
   it('advertises computer-use capabilities discovery', async () => {
     const logSpy = vi.spyOn(console, 'log').mockImplementation(() => {})
 
@@ -347,6 +361,15 @@ describe('orca root help', () => {
     )
     expect(logSpy.mock.calls[0][0]).toContain(
       'orchestration worker-abandon Fence an uncertain worker without claiming it stopped'
+    )
+    expect(logSpy.mock.calls[0][0]).toContain(
+      "orchestration worker-release Release a settled worker's terminal after archiving its output"
+    )
+    expect(logSpy.mock.calls[0][0]).toContain(
+      'orchestration worker-retain Keep a worker terminal live for debugging'
+    )
+    expect(logSpy.mock.calls[0][0]).toContain(
+      'orchestration worker-list Report worker terminal resource accounting'
     )
     expect(callMock).not.toHaveBeenCalled()
   })
@@ -2826,7 +2849,7 @@ describe('orca cli worktree awareness', () => {
     })
   })
 
-  it('passes agent prompt and setup policy through worktree.create', async () => {
+  it('starts an agent worktree in the background unless activation is explicit', async () => {
     queueFixtures(
       callMock,
       worktreeListFixture([buildWorktree('/tmp/repo', 'main', 'abc', 'repo-1')]),
@@ -2864,7 +2887,7 @@ describe('orca cli worktree awareness', () => {
       linkedIssue: undefined,
       comment: undefined,
       runHooks: false,
-      activate: true,
+      activate: false,
       setupDecision: 'run',
       parentWorktree: undefined,
       cwdParentWorktree: 'id:repo-1::/tmp/repo',
@@ -2876,7 +2899,7 @@ describe('orca cli worktree awareness', () => {
     })
   })
 
-  it('infers the repo from the current worktree on worktree.create', async () => {
+  it('infers the repo and honors explicit activation on worktree.create', async () => {
     queueFixtures(
       callMock,
       worktreeListFixture([buildWorktree('/tmp/repo', 'main', 'abc', 'repo-1')]),
@@ -2898,6 +2921,7 @@ describe('orca cli worktree awareness', () => {
         'codex',
         '--prompt',
         'hi',
+        '--activate',
         '--json'
       ],
       '/tmp/repo/src'

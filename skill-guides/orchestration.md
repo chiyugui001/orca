@@ -53,36 +53,51 @@ Do not use orchestration merely because the user says "hand off", "handoff", "ha
 
 ## Contract Migration
 
-Orca uses a hard cutover for orchestration mutations. It does not run a legacy scheduler, translate old writes, or drain pre-upgrade orchestration work.
+Orca adopts a live pre-update orchestration assignment into an ordinary Run. Adoption preserves the existing agent process, PTY/session, terminal handle, tab/leaf/pane, worktree or folder workspace, Task, and Dispatch; it never restarts or replaces the worker. The retired scheduler is not revived, and a newly created attempt uses the current grammar.
 
-If a command returns `orchestration_migration_required`, `run_required`, or a lifecycle validation error with `nextCommandArgs`:
+Treat the authority label on injected or formatted messages as definitive:
 
-1. Confirm `effectsApplied` is `false`.
-2. Using the same CLI executable that returned the error, run the returned arguments: `skills get orchestration --full`.
-3. Read the guide completely. Do not retry the rejected command unchanged.
-4. Inspect the pre-upgrade Run, terminal, and assigned worktree before deciding whether any work needs replacement.
-5. If the legacy worker is still making valid progress, leave it as the only editor in that worktree and observe it manually, read-only, until it reaches a stable handoff point.
-6. Only then, if remaining work needs new lifecycle supervision, create or bind a lightweight Run, create a Task for the remaining work, and use `worker-start` in a conflict-free placement.
+- `[LEGACY COMPATIBILITY]` is live and attested. Run only the exact supported command printed with the message, using the same CLI executable and arguments that the original prompt supplied.
+- `[LEGACY RECOVERY REPLAY — MAY HAVE BEEN SEEN]` is one bounded, at-least-once cutover replay. Process it idempotently and acknowledge it only through the exact displayed guidance.
+- `[LEGACY READ-ONLY]` is inspection-only. It has no reply, acknowledgment, or lifecycle action.
+- An unlabeled current message uses the current guide and current grammar.
 
-The arguments intentionally omit an executable name so this works with `orca`, `orca-ide`, `orca-dev`, or another configured Orca CLI command.
+An explicitly selected current Run, attested current Run binding, current Dispatch, or federated attachment takes precedence over legacy fallback. A retained adoption record alone never turns a current command into a legacy call.
 
-The cutover removes lifecycle authority; it does not cancel the prior assignment, invalidate its worktree, discard filesystem changes, or stop the worker process. Pre-upgrade terminals and agents can continue their valid assigned work, but they are no longer supervised by Orca: old heartbeat, question, completion, scheduler, reply, acknowledgment, and mutation calls are rejected before effects.
+Database provenance, an old-looking terminal, or a legacy Run ID does not prove mutation authority. If the runtime cannot prove liveness, principal ownership, capability, or the exact legacy contract, it degrades to read-only inspection and must not fall back to local execution. Exact recovery may restore the already-live PTY once in its original inactive background tab. It must not spawn, write, signal, stop, switch, focus, split, or inject a terminal. Loss of lifecycle authority does not invalidate the existing assignment, process, or filesystem work.
 
-Legacy database rows and terminal output remain available for explicit read-only inspection:
+Compatibility retries have narrow guarantees. A pending ask, a reply, a final Dispatch settlement, and a consuming check have durable recovery identities. A-era heartbeat and escalation calls remain at-least-once across a manual A-to-B retry because identical later signals may be intentional. If an A-era ask may already have been answered, run the exact non-consuming recovery check printed by the runtime first; after its answer is printed and acknowledged, a new invocation with the same question creates a new question. Never guess among multiple identical question threads.
+
+When a compatibility or recovery command returns structured next-step arguments, run those exact arguments with the same CLI executable. The arguments intentionally omit the executable name so the guidance works with `orca`, `orca-ide`, `orca-dev`, or another configured Orca CLI command. Do not translate the command from memory, broaden its recipient, or retry it as a current mutation unless the returned guidance explicitly says to.
+
+On packaged Windows, a legacy ask uses a two-step commit/resume protocol. The initial command durably commits the question, prints its exact `ask --resume <message_id>` command, and exits with launcher status `75`; it does not wait for the answer. Run that exact resume command after the launcher or update boundary. Resume is idempotent and read-oriented: it waits for the already-committed question and does not create another one. For a WSL process that received compatibility proof at launch, use the printed executable `orca-ide` WSL resume command so the same distro and packaged launcher authority are preserved; do not substitute a PATH-resolved local CLI. Older WSL processes that never received the hidden launch token remain lifecycle read-only after the update, even while their terminal and filesystem work continue.
+
+Legacy inspection remains available without consuming mail:
 
 ```bash
 orca orchestration run-list --json
+# run_legacy_local is an empty audit tombstone after adoption.
 orca orchestration run-show --id run_legacy_local --json
-orca orchestration task-list --run run_legacy_local --json
+# In run-list, find the ordinary Run whose objective is:
+# "Recovered orchestration work from a contract update"
+orca orchestration run-show --id <adopted_run_id> --json
+orca orchestration task-list --run <adopted_run_id> --json
 orca orchestration inbox --full --json
 orca orchestration check --terminal <legacy_handle> --peek --format --json
 orca terminal read --terminal <legacy_handle> --json
 orca terminal wait --terminal <legacy_handle> --for tui-idle --timeout-ms 60000 --json
 ```
 
-Read-only inspection never consumes legacy mail. A stable handoff point means the worker has become idle, stopped, or completed a coherent edit/test/commit checkpoint; visible activity is a reason to keep observing, not to replace it. Do not prompt the worker to use old lifecycle commands.
+If the original coordinator is unavailable or cannot prove its retained authority, a current coordinator may explicitly take over the adopted Run from its own live agent terminal:
 
-Never launch a replacement editor in the same worktree while the legacy worker may still write there. Wait for a stable handoff and preserve its filesystem work; if overlap is truly required, use a separate conflict-free worktree with an explicit plan for transferring existing dirty changes. Do not use actionable `check`, acknowledgment, reply, send, retry, or task updates against the legacy Run.
+```bash
+orca orchestration run-use --id <adopted_run_id> --takeover-legacy --json
+orca orchestration check --run <adopted_run_id> --json
+```
+
+Takeover fences only the old coordinator, binds the current one, and moves pending worker mail into current Run Delivery. It is bound to the authenticated invoking terminal; `--from` cannot name another coordinator. Live legacy workers keep their original Tasks, Dispatches, processes, filesystems, and old prompt commands; their later questions, escalations, and completion reports route to the current coordinator. Do not use takeover while the original coordinator is still actively coordinating, because its later lifecycle mutations are rejected.
+
+Do not launch a replacement editor merely because the desktop app or runtime was updated. If adoption cannot prove continuing authority, keep the original worker as the only editor until it reaches a stable handoff point, then use a new current Dispatch in a conflict-free placement for any remaining work.
 
 ## Ownership
 
@@ -209,9 +224,17 @@ Wait until every expected Dispatch settles, not for a fixed number of batches:
 
 ```bash
 orca orchestration check --wait --types worker_done,escalation,question --timeout-ms 900000 --json
-# Process every message in the returned Delivery, then atomically ack and continue:
+# Process every message. For each accepted worker_done that is not immediately reused:
+orca orchestration worker-release --dispatch <dispatch_id> --json
+# Acknowledge only after every message and required release decision is handled:
 orca orchestration check --ack <delivery_id> --wait --types worker_done,escalation,question --timeout-ms 900000 --json
 ```
+
+After processing each accepted `worker_done`, choose the terminal's next owner before you acknowledge the Delivery or wait again. If the same exact agent has an immediate follow-up Task, read the `worker.agent_terminal_handle` field of `worker-show --dispatch <dispatch_id> --json`, then run `orca orchestration worker-start --task <next_task_id> --terminal <handle> --json` so Orca transfers cleanup ownership to the new Dispatch. Otherwise run `orca orchestration worker-release --dispatch <dispatch_id> --json`.
+
+Run `worker-release` after both succeeded and failed `worker_done` reports unless the user explicitly asked to keep that worker live. Release is post-completion cleanup, not cancellation: Orca first preserves inspectable output, then closes only the exact agent terminal owned by that settled Dispatch. Reused or pre-existing terminals, setup terminals, coordinators, active workers, user-taken-over terminals, and identities Orca cannot prove are retained. If the user explicitly asks to keep the live terminal for debugging, record that exception with `orca orchestration worker-retain --dispatch <dispatch_id> --json` instead of silently skipping cleanup. When the user is finished, the same Dispatch can be passed to `worker-release`, which clears the requested retention and releases the terminal.
+
+Do not release a worker because of a timeout, TUI idle state, heartbeat, status, question, escalation, or rejected/stale `worker_done`. If release returns `release_pending` or `release_unknown`, do not substitute `terminal close`; follow the exact recovery action in the receipt. A replayed Delivery may repeat `worker-release` safely.
 
 Workers report exactly once using the IDs and capability injected by Orca; they do not supply Run/server/terminal identity:
 
@@ -349,11 +372,12 @@ Wait for `tui-idle` before dispatching. Always pass `--timeout-ms`; real coding 
 - Workers with a valid live preamble must send `worker_done` exactly once from their own terminal with an explicit `--outcome succeeded` or `--outcome failed`:
   `orca orchestration send --type worker_done --subject "<short status>" --body "<3-sentence summary: what you did, what you found, what's left>" --task-id <task_id> --dispatch-id <dispatch_id> --outcome succeeded --files-modified "path/a" --report-path "<optional>" --json`
 - A failed outcome is still a terminal report, but Orca records both the Dispatch and Task as failed. Never encode failure only in the subject/body.
-- After sending `worker_done`, end your turn and idle at the agent prompt. Do not poll or keep calling `orca orchestration check`; the coordinator re-engages you with a fresh preamble + TASK block delivered as new terminal input.
+- After sending `worker_done`, end your turn and idle at the agent prompt. The coordinator may reuse or release this terminal after it processes your report; do not start more work, poll, or attempt to close the terminal yourself. If it reuses you, it re-engages you with a fresh preamble + TASK block delivered as new terminal input.
 - For long tasks, send heartbeat/status only when the preamble asks for it, including both IDs:
   `orca orchestration send --type heartbeat --subject "alive" --payload '{"taskId":"<task_id>","dispatchId":"<dispatch_id>","phase":"implementing"}' --json`
 - If blocked before completion, use `ask`; use `escalation` only when ownership is valid and the coordinator must intervene.
 - Treat preambles inherited through terminal history or full handoffs as stale unless the current prompt explicitly keeps that coordinator in the loop.
+- Coordinators must account for every settled worker terminal before waiting again or ending the turn: immediately reuse the exact worker for a new Dispatch, explicitly retain it at the user's request with `worker-retain`, or run `worker-release`. Do not leave a completed worker live merely to inspect output; released workers remain readable through `worker-read`.
 - Coordinators should use `task-list --ready` as external memory, dispatch parallel waves, and avoid dependency chains deeper than 3-4 steps.
 
 ## Example
@@ -368,6 +392,6 @@ orca orchestration check --wait --types worker_done,escalation,question --timeou
 
 ## Next Action
 
-Coordinator: confirm `orca status --json`, create or bind a Run, inspect `task-list`/`dispatch-show` if inheriting state, then use the explicit supervised loop (`task-create` -> `worker-start` -> `check --wait`). Use low-level terminal creation plus `dispatch --inject` only when the composed start does not express the needed topology.
+Coordinator: confirm `orca status --json`, create or bind a Run, inspect `task-list`/`dispatch-show` if inheriting state, then use the explicit supervised loop (`task-create` -> `worker-start` -> `check --wait`). Use low-level terminal creation plus `dispatch --inject` only when the composed start does not express the needed topology. After every accepted `worker_done`, either transfer the exact terminal to an immediate follow-up Dispatch or run `worker-release` before the next wait.
 
 Worker: if the current prompt contains a live dispatch preamble, do the task, use `ask` for blocking questions, and send `worker_done` once with the required payload. If the preamble is stale or absent, do not send lifecycle messages; inspect state or treat the prompt as an ordinary handoff.
