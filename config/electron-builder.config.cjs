@@ -273,11 +273,11 @@ module.exports = {
   },
   win: {
     executableName: 'Orca',
-    // Why: Windows installers are signed after electron-builder packaging by
-    // SignPath, so the packager cannot infer the updater publisherName.
-    signtoolOptions: {
-      publisherName: 'SignPath Foundation'
-    },
+    // Why: fork self-distribution — no SignPath code-signing cert, so the
+    // updater must not enforce a publisherName (otherwise it rejects every
+    // locally-built update as "not signed by the application owner").
+    // Relies on HTTPS + the releases repo's write-access control instead.
+    // signtoolOptions.publisherName intentionally omitted.
     extraResources: [
       ...commonExtraResources,
       ...createPackagedRuntimeNodeModuleResources('win32'),
