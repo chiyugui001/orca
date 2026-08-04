@@ -123,9 +123,14 @@ function stripMarkdownCode(content: string): string {
 }
 
 function preservesEmbeddedHtml(contentWithoutCode: string, roundTripOutput: string): boolean {
+  // Why: stripMarkdownCode normalizes CRLF→LF in contentWithoutCode, so
+  // multi-line HTML fragments carry LF, but roundTripOutput preserves the
+  // source's CRLF. Normalize the haystack to LF or fragments with internal
+  // newlines never match and rich mode is wrongly blocked on Windows files.
+  const haystack = roundTripOutput.replace(/\r\n/g, '\n')
   let searchIndex = 0
   return forEachEmbeddedHtmlFragment(contentWithoutCode, (fragment) => {
-    const foundIndex = roundTripOutput.indexOf(fragment, searchIndex)
+    const foundIndex = haystack.indexOf(fragment, searchIndex)
     if (foundIndex === -1) {
       return false
     }

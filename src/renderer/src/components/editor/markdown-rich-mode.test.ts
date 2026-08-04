@@ -82,6 +82,23 @@ describe('getMarkdownRichModeUnsupportedMessage', () => {
     expect(message).not.toMatch(/reference-style links/)
   })
 
+  it('allows CRLF files with multi-line html comments that survive round-trip', () => {
+    // Why: stripMarkdownCode normalizes CRLF→LF in the fragment source, but
+    // the round-trip output preserves CRLF — multi-line comments must still
+    // match or rich mode is wrongly blocked on Windows files.
+    const content = [
+      '# Title',
+      '',
+      '<!-- multi-line',
+      'comment body',
+      'spanning lines -->',
+      '',
+      'Plain paragraph.',
+      ''
+    ].join('\r\n')
+    expect(getMarkdownRichModeUnsupportedMessage(content)).toBeNull()
+  })
+
   it('strips newline-heavy fenced code without splitting the full body', () => {
     const split = vi.spyOn(String.prototype, 'split')
     const content = `${'```tsx\n<Widget />\n```\n'.repeat(10_000)}# Tail\n`
