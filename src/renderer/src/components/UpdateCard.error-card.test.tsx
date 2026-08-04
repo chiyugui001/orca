@@ -71,7 +71,7 @@ describe('UpdateCard Windows signature failures', () => {
     expect(screen.queryByText(message)).toBeNull()
 
     fireEvent.click(screen.getByRole('button', { name: 'Check official releases' }))
-    expect(openUrl).toHaveBeenCalledWith('https://github.com/stablyai/orca/releases')
+    expect(openUrl).toHaveBeenCalledWith('https://github.com/chiyugui001/orca/releases')
     expect(openUrl).not.toHaveBeenCalledWith(expect.stringContaining('/tag/'))
   })
 

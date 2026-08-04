@@ -172,7 +172,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
                 <a
                   href={
                     updateStatus.releaseUrl ??
-                    `https://github.com/stablyai/orca/releases/tag/v${updateStatus.version}`
+                    `https://github.com/chiyugui001/orca/releases/tag/v${updateStatus.version}`
                   }
                   target="_blank"
                   rel="noopener noreferrer"
@@ -212,7 +212,7 @@ export function GeneralUpdateSettingsSection(): React.JSX.Element {
                 <a
                   href={
                     updateStatus.releaseUrl ??
-                    `https://github.com/stablyai/orca/releases/tag/v${updateStatus.version}`
+                    `https://github.com/chiyugui001/orca/releases/tag/v${updateStatus.version}`
                   }
                   target="_blank"
                   rel="noopener noreferrer"
