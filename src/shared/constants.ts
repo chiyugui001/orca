@@ -12,7 +12,7 @@ import type {
 } from './types'
 import { EMPTY_CODEX_RESET_CREDIT_ATTEMPT_LEDGER } from './codex-reset-credit-attempt-ledger'
 import { DEFAULT_STATUS_BAR_ITEMS } from './status-bar-defaults'
-import { DEFAULT_TERMINAL_FONT_WEIGHT } from './terminal-fonts'
+import { DEFAULT_TERMINAL_FONT_WEIGHT, DEFAULT_TERMINAL_FONT_WEIGHT_BOLD } from './terminal-fonts'
 import { getDefaultTerminalQuickCommands } from './terminal-quick-commands'
 import type { VoiceSettings } from './speech-types'
 import { cloneDefaultWorkspaceStatuses } from './workspace-statuses'
@@ -182,7 +182,6 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     autoRenameBranchFromWorkDefaultedOn: true,
     branchPrefix: 'git-username',
     branchPrefixCustom: '',
-    enableGitHubAttribution: false,
     theme: 'system',
     leftSidebarAppearanceMode: 'default',
     leftSidebarTintColor: DEFAULT_LEFT_SIDEBAR_TINT_COLOR,
@@ -206,6 +205,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     terminalFontSize: 14,
     terminalFontFamily: defaultTerminalFontFamily(),
     terminalFontWeight: DEFAULT_TERMINAL_FONT_WEIGHT,
+    terminalFontWeightBold: DEFAULT_TERMINAL_FONT_WEIGHT_BOLD,
     terminalLineHeight: 1,
     terminalScrollSensitivity: 1.15,
     terminalFastScrollSensitivity: 5,
@@ -265,6 +265,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     localhostWorktreeLabelsEnabled: false,
     openLinksInAppPreferencePrompted: false,
     openLinksInAppModifierInverts: false,
+    terminalLinkActionPopoverEnabled: true,
     openAgentTabsInChatByDefault: false,
     experimentalNativeChat: false,
     nativeChatSessionOptions: {},
@@ -277,6 +278,9 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     showTitlebarAppName: true,
     showTasksButton: true,
     showAutomationsButton: true,
+    artifactsEnabled: true,
+    artifactSharingEnabled: false,
+    showArtifactsButton: false,
     showMobileButton: true,
     showPinnedWorktreesInGroups: false,
     ctrlTabOrderMode: 'mru',
@@ -320,6 +324,7 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     skipDeleteWorktreeConfirm: false,
     skipCloseTerminalWithRunningProcessConfirm: false,
     skipDeleteAutomationConfirm: false,
+    skipDeleteArtifactConfirm: false,
     skipCodexRateLimitResetConfirm: false,
     defaultTaskViewPreset: 'all',
     defaultTaskSource: 'github',
@@ -357,10 +362,6 @@ export function getDefaultSettings(homedir: string): GlobalSettings {
     // Why: off keeps the cosmetic overlay unmounted for users who never opt in.
     experimentalPet: false,
     experimentalActivity: false,
-    experimentalAgentDashboardPopout: false,
-    // Why: in-window screen popover is the default surface; users opt into a separate pop-out window.
-    experimentalAgentDashboardMode: 'in-window',
-    experimentalAgentDashboardShowIdle: false,
     experimentalActivityDefaultedOffForAllUsers: true,
     experimentalTerminalAttention: false,
     experimentalAgentHibernation: false,
@@ -479,6 +480,8 @@ export function getDefaultUIState(): PersistedUIState {
     hideAutomationGeneratedWorkspaces: false,
     hideCliCreatedWorkspaces: false,
     hideDetachedHeadWorkspaces: false,
+    hideWorkspacesFromOtherDevices: false,
+    alwaysShowDefaultBranchWorkspace: true,
     showDotfilesByWorktree: {},
     filterRepoIds: [],
     collapsedGroups: [],

@@ -1,0 +1,424 @@
+diff --git a/src/main/gitlab/client.ts b/src/main/gitlab/client.ts
+index d2f30b2..a970d4c 100644
+--- a/src/main/gitlab/client.ts
++++ b/src/main/gitlab/client.ts
+@@ -978,6 +978,69 @@ export async function addMRComment(
+   )
+ }
+ 
++export async function replyMRDiscussion(
++  repoPath: string,
++  iid: number,
++  discussionId: string,
++  body: string,
++  preference?: IssueSourcePreference,
++  connectionId?: string | null,
++  projectRef?: ProjectRef | null,
++  localGitOptions: LocalGitExecOptions = {}
++): Promise<{ ok: true; comment: MRComment } | { ok: false; error: string }> {
++  return withProjectRef<{ ok: true; comment: MRComment } | { ok: false; error: string }>(
++    repoPath,
++    preference,
++    connectionId,
++    projectRef,
++    async (projectRef) => {
++      const trimmedDiscussionId = discussionId.trim()
++      if (!trimmedDiscussionId) {
++        return { ok: false, error: 'Discussion id is required' }
++      }
++      await acquire()
++      try {
++        const { stdout } = await glabExecFileAsync(
++          [
++            'api',
++            ...glabHostnameArgs(projectRef, connectionId),
++            '-X',
++            'POST',
++            `projects/${encodedProject(projectRef.path)}/merge_requests/${iid}/discussions/${encodeURIComponent(trimmedDiscussionId)}/replies`,
++            '-f',
++            `body=${body}`
++          ],
++          glabRepoExecOptions(repoPath, connectionId, localGitOptions)
++        )
++        const data = JSON.parse(stdout) as {
++          id?: number
++          author?: { username?: string; avatar_url?: string; state?: string } | null
++          body?: string
++          created_at?: string
++        }
++        return {
++          ok: true,
++          comment: {
++            id: data.id ?? Date.now(),
++            author: data.author?.username ?? 'You',
++            authorAvatarUrl: data.author?.avatar_url ?? '',
++            body: data.body ?? body,
++            createdAt: data.created_at ?? new Date().toISOString(),
++            url: '',
++            isBot: data.author?.state === 'bot'
++          }
++        }
++      } catch (err) {
++        return { ok: false, error: err instanceof Error ? err.message : String(err) }
++      } finally {
++        release()
++      }
++    },
++    { ok: false, error: 'Could not resolve GitLab project for this repository' },
++    localGitOptions
++  )
++}
++
+ export async function addMRInlineComment(
+   repoPath: string,
+   iid: number,
+diff --git a/src/main/ipc/gitlab.ts b/src/main/ipc/gitlab.ts
+index f400ce7..8a8e885 100644
+--- a/src/main/ipc/gitlab.ts
++++ b/src/main/ipc/gitlab.ts
+@@ -45,6 +45,7 @@ import {
+   mergeMR,
+   reopenMR,
+   resolveMRDiscussion,
++  replyMRDiscussion,
+   retryJob,
+   updateIssue,
+   updateMR,
+@@ -516,6 +517,26 @@ export function registerGitLabHandlers(store: Store): void {
+     }
+   )
+ 
++  ipcMain.handle(
++    'gitlab:replyMRDiscussion',
++    async (
++      _event,
++      args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
++    ) => {
++      const repo = assertRegisteredRepo(args, store)
++      return replyMRDiscussion(
++        repo.path,
++        args.iid,
++        args.discussionId,
++        args.body,
++        repo.issueSourcePreference,
++        repoConnectionId(repo),
++        undefined,
++        ...localGitOptionArgs(store, repo)
++      )
++    }
++  )
++
+   ipcMain.handle(
+     'gitlab:jobTrace',
+     async (
+diff --git a/src/preload/api-types.ts b/src/preload/api-types.ts
+index 245b0d3..0077fe8 100644
+--- a/src/preload/api-types.ts
++++ b/src/preload/api-types.ts
+@@ -2067,6 +2067,9 @@ export type PreloadApi = {
+         resolved: boolean
+       }
+     ) => Promise<GitLabDiscussionResolveResult>
++    replyMRDiscussion: (
++      args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
++    ) => Promise<GitLabCommentResult>
+     jobTrace: (
+       args: GitLabRepoSelectorArgs & {
+         jobId: number
+diff --git a/src/preload/gitlab.ts b/src/preload/gitlab.ts
+index 28c6f76..5e01db5 100644
+--- a/src/preload/gitlab.ts
++++ b/src/preload/gitlab.ts
+@@ -153,6 +153,10 @@ export const glApi = {
+     }
+   ): Promise<unknown> => ipcRenderer.invoke('gitlab:resolveMRDiscussion', args),
+ 
++  replyMRDiscussion: (
++    args: GitLabRepoSelectorArgs & { iid: number; discussionId: string; body: string }
++  ): Promise<unknown> => ipcRenderer.invoke('gitlab:replyMRDiscussion', args),
++
+   jobTrace: (
+     args: GitLabRepoSelectorArgs & { jobId: number; projectRef?: unknown }
+   ): Promise<unknown> => ipcRenderer.invoke('gitlab:jobTrace', args),
+diff --git a/src/renderer/src/components/right-sidebar/ChecksPanel.tsx b/src/renderer/src/components/right-sidebar/ChecksPanel.tsx
+index 063aad0..31909ce 100644
+--- a/src/renderer/src/components/right-sidebar/ChecksPanel.tsx
++++ b/src/renderer/src/components/right-sidebar/ChecksPanel.tsx
+@@ -50,6 +50,7 @@ import {
+   PRCommentsList,
+   PRTriageStrip
+ } from './checks-panel-content'
++import type { RightPanelCommentSubmitResult } from './right-panel-comment-composer'
+ import {
+   clearPRCommentsListSelection,
+   type PRCommentsListSelectionClearRequest
+@@ -170,7 +171,7 @@ import { formatCreateError } from './create-pull-request-review-copy'
+ import { stripBaseRef, useCreatePullRequestDialogFields } from './useCreatePullRequestDialogFields'
+ import { localizedHostedReviewCopy } from '@/i18n/hosted-review-localized-copy'
+ import { translate } from '@/i18n/i18n'
+-import { groupPRComments, type PRCommentGroup } from '@/lib/pr-comment-groups'
++import { groupPRComments, getPRCommentGroupComments, type PRCommentGroup } from '@/lib/pr-comment-groups'
+ import { openChecksPanelHostedReviewUrl } from './checks-panel-hosted-review-click-routing'
+ import { ChecksPanelUpdatedAtMetadata } from './checks-panel-updated-at-metadata'
+ import {
+@@ -2719,9 +2720,11 @@ export default function ChecksPanel(): React.JSX.Element {
+   )
+ 
+   const canTargetPRComments = Boolean(repo && prNumber && pr?.prRepo)
+-  const commentsDisabledReason = canTargetPRComments
+-    ? undefined
+-    : 'Commenting requires a GitHub PR repository target.'
++  const canTargetMRComments = Boolean(repo && activeGitLabReview)
++  const commentsDisabledReason =
++    canTargetPRComments || canTargetMRComments
++      ? undefined
++      : 'Commenting requires a GitHub PR or GitLab MR repository target.'
+   const detectedAgentsForAI =
+     typeof activeConnectionId === 'string' ? remoteDetectedAgentIds : detectedAgentIds
+   const noEnabledAgentKnown =
+@@ -2898,6 +2901,78 @@ export default function ChecksPanel(): React.JSX.Element {
+     ]
+   )
+ 
++  // --- GitLab MR comment handlers ---
++  // Why: GitHub PR comments go through addPRConversationComment / addPRReviewCommentReply,
++  // but GitLab MR has no equivalent reply-to-thread API in the preload surface.
++  // We use addMRComment for both new comments and replies (with @author mention).
++  const handleAddMRComment = useCallback(
++    async (body: string): Promise<RightPanelCommentSubmitResult> => {
++      if (!repo || !activeGitLabReview) {
++        return {
++          ok: false as const,
++          error: commentsDisabledReason ?? 'Commenting unavailable.'
++        }
++      }
++      try {
++        const result = await window.api.gl.addMRComment({
++          repoPath: repo.path,
++          repoId: repo.id,
++          iid: activeGitLabReview.number,
++          body
++        })
++        if (!result.ok) {
++          toast.error(result.error)
++          return { ok: false as const, error: result.error }
++        }
++        // Why: MRComment is structurally compatible with PRComment (gitLabMRCommentsToPRComments
++        // only strips reactions). mergePRCommentIntoList works with either type.
++        const compatibleComment = result.comment as unknown as PRComment
++        setComments((prev) => mergePRCommentIntoList(prev, compatibleComment))
++        return { ok: true as const }
++      } catch (err) {
++        const error = err instanceof Error ? err.message : 'Failed to post comment.'
++        toast.error(error)
++        return { ok: false as const, error }
++      }
++    },
++    [activeGitLabReview, commentsDisabledReason, repo]
++  )
++
++  const handleReplyToMRComment = useCallback(
++    async (comment: PRComment, body: string): Promise<RightPanelCommentSubmitResult> => {
++      if (!repo || !activeGitLabReview) {
++        return {
++          ok: false as const,
++          error: commentsDisabledReason ?? 'Commenting unavailable.'
++        }
++      }
++      // Why: GitLab API supports replying to a discussion thread via
++      // POST /projects/:id/merge_requests/:iid/discussions/:discussion_id/replies
++      // This creates a true nested reply, not a standalone comment.
++      try {
++        const result = await window.api.gl.replyMRDiscussion({
++          repoPath: repo.path,
++          repoId: repo.id,
++          iid: activeGitLabReview.number,
++          discussionId: comment.threadId ?? '',
++          body
++        })
++        if (!result.ok) {
++          toast.error(result.error)
++          return { ok: false as const, error: result.error }
++        }
++        const compatibleComment = result.comment as unknown as PRComment
++        setComments((prev) => mergePRCommentIntoList(prev, compatibleComment))
++        return { ok: true as const }
++      } catch (err) {
++        const error = err instanceof Error ? err.message : 'Failed to post reply.'
++        toast.error(error)
++        return { ok: false as const, error }
++      }
++    },
++    [activeGitLabReview, commentsDisabledReason, repo]
++  )
++
+   // Why: hosted-review conflicts come from the host mergeability check (no local MERGE_HEAD), so the prompt reproduces the merge locally.
+   const handleResolveConflictsWithAI = useCallback(async (): Promise<void> => {
+     if (!sourceControlAiActionsVisible || !activeWorktreeId || !activeConflictReview) {
+@@ -2986,6 +3061,53 @@ export default function ChecksPanel(): React.JSX.Element {
+     ]
+   )
+ 
++  // Why: Batch-reply selected comment threads directly to GitLab MR via replyMRDiscussion.
++  // This is the "comment on MR" alternative to "resolve with AI".
++  const handleCommentSelectedToMR = useCallback(
++    async (groups: PRCommentGroup[]): Promise<void> => {
++      if (!repo || !activeGitLabReview) {
++        return
++      }
++      const threadGroups = groups.filter(
++        (g): g is Extract<PRCommentGroup, { kind: 'thread' }> =>
++          g.kind === 'thread' && Boolean(g.threadId)
++      )
++      if (threadGroups.length === 0) {
++        toast.message('No commentable threads selected.')
++        return
++      }
++      let success = 0
++      let failed = 0
++      for (const group of threadGroups) {
++        const lastComment = getPRCommentGroupComments(group).at(-1)
++        if (!lastComment) continue
++        try {
++          const result = await window.api.gl.replyMRDiscussion({
++            repoPath: repo.path,
++            repoId: repo.id,
++            iid: activeGitLabReview.number,
++            discussionId: group.threadId,
++            body: 'Reviewed.'
++          })
++          if (result.ok) {
++            success += 1
++          } else {
++            failed += 1
++          }
++        } catch {
++          failed += 1
++        }
++      }
++      if (failed === 0) {
++        toast.success(`Replied to ${success} thread${success === 1 ? '' : 's'} on MR.`)
++      } else {
++        toast.error(`Replied to ${success}, failed ${failed}.`)
++      }
++      void fetchGitLabDetails()
++    },
++    [activeGitLabReview, repo, fetchGitLabDetails]
++  )
++
+   const clearSentCommentSelection = useCallback((reviewContextKey: string): void => {
+     clearPRCommentsListSelection(reviewContextKey)
+     commentsSelectionClearTokenRef.current += 1
+@@ -4130,17 +4252,20 @@ export default function ChecksPanel(): React.JSX.Element {
+         comments={comments}
+         commentsLoading={commentsLoading}
+         reviewKind={reviewShortLabel}
+-        commentsDisabled={!canTargetPRComments}
++        commentsDisabled={!canTargetPRComments && !canTargetMRComments}
+         commentsDisabledReason={commentsDisabledReason}
+         selectionContextKey={stateRequestKey}
+         selectionClearRequest={commentsSelectionClearRequest}
+         resolveCommentsWithAIDisabled={Boolean(resolveCommentsWithAIDisabledReason)}
+         resolveCommentsWithAIDisabledReason={resolveCommentsWithAIDisabledReason}
+-        onAddComment={pr ? handleAddPRComment : undefined}
++        onAddComment={pr ? handleAddPRComment : activeGitLabReview ? handleAddMRComment : undefined}
+         onResolveSelectedCommentsWithAI={
+           sourceControlAiActionsVisible ? handleResolveCommentsWithAI : undefined
+         }
+-        onReply={pr ? handleReplyToComment : undefined}
++        onCommentSelectedToMR={
++          activeGitLabReview ? handleCommentSelectedToMR : undefined
++        }
++        onReply={pr ? handleReplyToComment : activeGitLabReview ? handleReplyToMRComment : undefined}
+         onResolve={pr || activeGitLabReview ? handleResolve : undefined}
+         onEditComment={pr ? handleEditComment : undefined}
+         onDeleteComment={pr ? handleDeleteComment : undefined}
+diff --git a/src/renderer/src/components/right-sidebar/checks-panel-content.tsx b/src/renderer/src/components/right-sidebar/checks-panel-content.tsx
+index ab2716d..1376d9a 100644
+--- a/src/renderer/src/components/right-sidebar/checks-panel-content.tsx
++++ b/src/renderer/src/components/right-sidebar/checks-panel-content.tsx
+@@ -2215,6 +2215,7 @@ export function PRCommentsList({
+   resolveCommentsWithAIDisabledReason,
+   onAddComment,
+   onResolveSelectedCommentsWithAI,
++  onCommentSelectedToMR,
+   onReply,
+   onResolve,
+   onEditComment,
+@@ -2231,6 +2232,7 @@ export function PRCommentsList({
+   resolveCommentsWithAIDisabledReason?: string
+   onAddComment?: (body: string) => Promise<RightPanelCommentSubmitResult>
+   onResolveSelectedCommentsWithAI?: (groups: PRCommentGroup[]) => void
++  onCommentSelectedToMR?: (groups: PRCommentGroup[]) => void
+   onReply?: (comment: PRComment, body: string) => Promise<RightPanelCommentSubmitResult>
+   onResolve?: (threadId: string, resolve: boolean) => boolean | Promise<boolean>
+   onEditComment?: (comment: PRComment, body: string) => Promise<boolean>
+@@ -2455,6 +2457,31 @@ export function PRCommentsList({
+                 </Tooltip>
+                 {isSelectingForAI && (
+                   <>
++                    {onCommentSelectedToMR && (
++                      <Tooltip>
++                        <TooltipTrigger asChild>
++                          <Button
++                            type="button"
++                            variant="ghost"
++                            size="icon-xs"
++                            className="relative text-muted-foreground hover:text-foreground"
++                            aria-label="Reply selected comments on MR"
++                            disabled={
++                              selectedCommentQueueCount === 0 || commentsLoading
++                            }
++                            onClick={() => onCommentSelectedToMR?.(selectedGroups)}
++                          >
++                            <MessageSquare className="size-3" />
++                            <span className="absolute -right-1 -top-1 flex h-3.5 min-w-3.5 items-center justify-center rounded-full border border-border bg-background px-0.5 text-[9px] leading-none text-foreground tabular-nums">
++                              {selectedCommentQueueCount}
++                            </span>
++                          </Button>
++                        </TooltipTrigger>
++                        <TooltipContent side="top" sideOffset={4}>
++                          Reply {selectedCommentQueueCount} comment{selectedCommentQueueCount === 1 ? '' : 's'} on {reviewKind}
++                        </TooltipContent>
++                      </Tooltip>
++                    )}
+                     <Tooltip>
+                       <TooltipTrigger asChild>
+                         <Button
+diff --git a/src/renderer/src/web/web-preload-api.ts b/src/renderer/src/web/web-preload-api.ts
+index 2d8976d..040395b 100644
+--- a/src/renderer/src/web/web-preload-api.ts
++++ b/src/renderer/src/web/web-preload-api.ts
+@@ -372,6 +372,7 @@ type WebGitLabRouteKey =
+   | 'addMRComment'
+   | 'addMRInlineComment'
+   | 'resolveMRDiscussion'
++  | 'replyMRDiscussion'
+   | 'jobTrace'
+   | 'retryJob'
+   | 'workItemByPath'
+@@ -394,6 +395,7 @@ type WebGitLabRuntimeMethod =
+   | 'gitlab.addMRComment'
+   | 'gitlab.addMRInlineComment'
+   | 'gitlab.resolveMRDiscussion'
++  | 'gitlab.replyMRDiscussion'
+   | 'gitlab.jobTrace'
+   | 'gitlab.retryJob'
+   | 'gitlab.workItemByPath'
+@@ -473,6 +475,7 @@ export const GITLAB_WEB_RPC_METHODS = {
+   addMRComment: 'gitlab.addMRComment',
+   addMRInlineComment: 'gitlab.addMRInlineComment',
+   resolveMRDiscussion: 'gitlab.resolveMRDiscussion',
++  replyMRDiscussion: 'gitlab.replyMRDiscussion',
+   jobTrace: 'gitlab.jobTrace',
+   retryJob: 'gitlab.retryJob',
+   workItemByPath: 'gitlab.workItemByPath'
+@@ -2359,6 +2362,8 @@ function createGitLabApi(): WebGitLabApi {
+         GITLAB_WEB_RPC_METHODS.resolveMRDiscussion,
+         args
+       ),
++    replyMRDiscussion: (args) =>
++      route<WebGitLabResult<'replyMRDiscussion'>>(GITLAB_WEB_RPC_METHODS.replyMRDiscussion, args),
+     jobTrace: (args) => route<WebGitLabResult<'jobTrace'>>(GITLAB_WEB_RPC_METHODS.jobTrace, args),
+     retryJob: (args) => route<WebGitLabResult<'retryJob'>>(GITLAB_WEB_RPC_METHODS.retryJob, args),
+     workItemByPath: (args) =>

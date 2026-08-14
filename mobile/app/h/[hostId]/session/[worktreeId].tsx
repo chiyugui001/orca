@@ -106,7 +106,8 @@ import type {
   TerminalModes,
   TerminalWebViewHandle
 } from '../../../../src/terminal/terminal-webview-contract'
-import { isTerminalOscLinkRanges } from '../../../../src/terminal/terminal-osc-link-ranges'
+import { isTerminalOscLinkRanges } from '../../../../../src/shared/terminal-osc-link-ranges'
+import { computeActiveTerminalKeyboardLift } from '../../../../src/terminal/terminal-keyboard-avoidance-lift'
 import { useTerminalViewportRefit } from '../../../../src/terminal/terminal-viewport-refit'
 import {
   getDefaultTerminalAccessoryBuiltInIds,
@@ -153,7 +154,7 @@ import { ActionSheetModal } from '../../../../src/components/ActionSheetModal'
 import { MobileAgentIcon } from '../../../../src/components/MobileAgentIcon'
 import { TextInputModal } from '../../../../src/components/TextInputModal'
 import { ConfirmModal } from '../../../../src/components/ConfirmModal'
-import { MobileRichMarkdownEditor } from '../../../../src/components/MobileRichMarkdownEditor'
+import { MobileMarkdownReader } from '../../../../src/session/MobileMarkdownReader'
 import { MobileSyntaxSegments } from '../../../../src/components/MobileSyntaxSegments'
 import {
   CustomKeyModal,
@@ -195,8 +196,11 @@ import { MobileTerminalLiveInputStatus } from '../../../../src/session/MobileTer
 import { MobileTerminalInputActions } from '../../../../src/session/MobileTerminalInputActions'
 import { resolveMobileFileTabDoc } from '../../../../src/files/mobile-file-tab-doc'
 import { captureMobileFileMutationOwnership } from '../../../../src/files/mobile-file-mutation-ownership'
-import { openMobileTerminalFileTap } from '../../../../src/session/mobile-terminal-file-tap-open'
+import { useMobileFileTapHandlers } from '../../../../src/session/use-mobile-file-tap-handlers'
 import { useLiveWorktreeName } from '../../../../src/session/use-live-worktree-name'
+import { useMissingWorktreeBounce } from '../../../../src/session/use-missing-worktree-bounce'
+import { hostRouteWithNotice } from '../../../../src/host-route-notice'
+import { LAST_VISITED_WORKTREE_STORAGE_KEY } from '../../../../src/worktree/last-visited-worktree-repo'
 import {
   acceptSessionSnapshot,
   applyClosedTabTombstones,
@@ -263,7 +267,6 @@ import {
   TERMINAL_GESTURE_INPUT_REFILL_PER_SECOND,
   updateTerminalCwdFromStreamEvent
 } from '../../../../src/session/mobile-session-route-helpers'
-import { resolveMarkdownFloatingActionsBottom } from '../../../../src/session/markdown-floating-actions-layout'
 import { resolveTabStripScrollOffset } from '../../../../src/session/tab-strip-scroll'
 import { activateOpenedSourceControlDiffTab } from '../../../../src/session/opened-mobile-session-tab'
 import {
@@ -271,7 +274,7 @@ import {
   dismissMobileSessionCreateWarningState,
   reconcileMobileSessionCreateWarningState
 } from '../../../../src/session/mobile-session-create-warning-state'
-import { colors, spacing } from '../../../../src/theme/mobile-theme'
+import { colors } from '../../../../src/theme/mobile-theme'
 import { QuickCommandsTabButton } from '../../../../src/session/QuickCommandsTabButton'
 import { styles } from '../../../../src/session/mobile-session-styles'
 import type { DiffComment, TerminalQuickCommand } from '../../../../../src/shared/types'
@@ -297,132 +300,6 @@ import type {
 } from '../../../../src/session/mobile-session-route-types'
 
 const TERMINAL_KEYBOARD_DISMISS_ACTION_SHEET_FALLBACK_MS = 450
-
-function MarkdownReader({
-  documentId,
-  doc,
-  onRefresh,
-  onChange,
-  onSave,
-  onCopy,
-  onDiscard,
-  keyboardLift
-}: {
-  documentId: string
-  doc: MarkdownDocState | undefined
-  onRefresh: () => void
-  onChange: (content: string) => void
-  onSave: () => void
-  onCopy: () => void
-  onDiscard: () => void
-  keyboardLift: number
-}) {
-  // Native Keyboard events under-report the WebView editor's covered area, so prefer the larger WebView-measured inset.
-  const [webviewKeyboardInset, setWebviewKeyboardInset] = useState(0)
-  const effectiveKeyboardLift = Math.max(keyboardLift, webviewKeyboardInset)
-  if (!doc || doc.status === 'loading') {
-    return (
-      <View style={styles.markdownState}>
-        <ActivityIndicator size="small" color={colors.textSecondary} />
-      </View>
-    )
-  }
-  if (doc.status === 'error') {
-    return (
-      <View style={styles.markdownState}>
-        <Text style={styles.markdownError}>{doc.message}</Text>
-        <Pressable style={styles.markdownRefreshButton} onPress={onRefresh}>
-          <RefreshCw size={14} color={colors.textPrimary} />
-          <Text style={styles.markdownRefreshText}>Retry</Text>
-        </Pressable>
-      </View>
-    )
-  }
-
-  const statusText = doc.saveError
-    ? doc.saveError
-    : doc.readOnlyReason
-      ? 'Read only'
-      : doc.stale
-        ? 'Changed on desktop'
-        : null
-  const showRefresh = (doc.stale && !doc.isDirty) || !doc.editable
-  const showCopy = doc.saveError || !doc.editable
-  const showSave = doc.isDirty || doc.saving
-  const showFloatingActions = statusText || showRefresh || showCopy || showSave
-
-  return (
-    <View style={styles.markdownEditor}>
-      <MobileRichMarkdownEditor
-        key={documentId}
-        content={doc.localContent}
-        editable={doc.editable && !doc.saving}
-        onChange={onChange}
-        onKeyboardInsetChange={setWebviewKeyboardInset}
-      />
-      {showFloatingActions ? (
-        <View
-          pointerEvents="box-none"
-          style={[
-            styles.markdownFloatingBar,
-            // Why: editor focus lives in a WebView, so lift native Save/Discard controls instead of resizing it.
-            {
-              bottom: resolveMarkdownFloatingActionsBottom({
-                keyboardLift: effectiveKeyboardLift,
-                restingBottom: spacing.lg,
-                liftedClearance: spacing.md
-              })
-            }
-          ]}
-        >
-          {statusText ? (
-            <Text
-              style={[styles.markdownFloatingStatus, doc.saveError ? styles.markdownError : null]}
-              numberOfLines={2}
-            >
-              {statusText}
-            </Text>
-          ) : null}
-          <View style={styles.markdownFloatingActions}>
-            {showCopy ? (
-              <Pressable style={styles.markdownFloatingButton} onPress={onCopy}>
-                <Text style={styles.markdownFloatingButtonText}>Copy</Text>
-              </Pressable>
-            ) : null}
-            {showRefresh ? (
-              <Pressable style={styles.markdownFloatingButton} onPress={onRefresh}>
-                <RefreshCw size={13} color={colors.textPrimary} />
-                <Text style={styles.markdownFloatingButtonText}>Refresh</Text>
-              </Pressable>
-            ) : null}
-            {doc.isDirty ? (
-              <Pressable style={styles.markdownFloatingButton} onPress={onDiscard}>
-                <Text style={styles.markdownFloatingButtonText}>Discard</Text>
-              </Pressable>
-            ) : null}
-            {showSave ? (
-              <Pressable
-                style={[
-                  styles.markdownFloatingButton,
-                  styles.markdownSaveButton,
-                  (!doc.editable || !doc.isDirty || doc.saving) && styles.markdownButtonDisabled
-                ]}
-                disabled={!doc.editable || !doc.isDirty || doc.saving}
-                onPress={onSave}
-              >
-                {doc.saving ? (
-                  <ActivityIndicator size="small" color={colors.textPrimary} />
-                ) : (
-                  <Text style={styles.markdownFloatingButtonText}>Save</Text>
-                )}
-              </Pressable>
-            ) : null}
-          </View>
-        </View>
-      ) : null}
-    </View>
-  )
-}
 
 function DiffLineRow({
   line,
@@ -858,11 +735,18 @@ export default function SessionScreen() {
   const reconnectAttempts = useReconnectAttempt(hostId)
   const lastConnectedAt = useLastConnectedAt(hostId)
   const forceReconnectHost = useForceReconnect()
-  const worktreeName = useLiveWorktreeName({
+  const { name: worktreeName, resolution: worktreeResolution } = useLiveWorktreeName({
     client,
     connState,
     routeName: routeWorktreeName,
     worktreeId
+  })
+  // Why: a workspace deleted on the desktop leaves every RPC on this route failing forever.
+  useMissingWorktreeBounce({
+    hostId,
+    worktreeId,
+    resolution: worktreeResolution,
+    bounce: (id) => router.replace(hostRouteWithNotice(id, 'worktree-missing'))
   })
   // Master-detail state: wide layouts dock a tapped panel beside the session; narrow keeps it null and pushes full-screen routes.
   const { isWideLayout } = useResponsiveLayout()
@@ -1033,6 +917,9 @@ export default function SessionScreen() {
   } | null>(null)
   const terminalUnsubsRef = useRef<Map<string, () => void>>(new Map())
   const subscribingHandlesRef = useRef<Set<string>>(new Set())
+  // Why: a lease-only subscribe never renders, so the reconciler needs to tell it apart
+  // from a stream that does — an uncovered handle holding one is a blank terminal.
+  const leaseOnlyHandlesRef = useRef<Set<string>>(new Set())
   const initializedHandlesRef = useRef<Set<string>>(new Set())
   const terminalDiagnosticsRef = useRef(new MobileTerminalDiagnostics())
   // Why: bounds the scrollback→resubscribe fit loop per handle (STA-3337).
@@ -1349,6 +1236,7 @@ export default function SessionScreen() {
       terminalUnsubsRef.current.get(handle)?.()
       terminalUnsubsRef.current.delete(handle)
       subscribingHandlesRef.current.delete(handle)
+      leaseOnlyHandlesRef.current.delete(handle)
       terminalDiagnosticsRef.current.terminalUnsubscribed(handle)
       subscribeSeqRef.current.set(handle, (subscribeSeqRef.current.get(handle) ?? 0) + 1)
       // Why: reset the high-water mark so a fresh subscription's first scrollback isn't dropped as stale.
@@ -1381,6 +1269,7 @@ export default function SessionScreen() {
     clearNativeChatInputLease()
     terminalUnsubsRef.current.clear()
     subscribingHandlesRef.current.clear()
+    leaseOnlyHandlesRef.current.clear()
     initializedHandlesRef.current.clear()
     terminalDiagnosticsRef.current.clearTerminalCache()
     viewportResubscribeBudgetRef.current.clear()
@@ -1447,6 +1336,11 @@ export default function SessionScreen() {
       }
 
       subscribingHandlesRef.current.add(handle)
+      if (covered) {
+        leaseOnlyHandlesRef.current.add(handle)
+      } else {
+        leaseOnlyHandlesRef.current.delete(handle)
+      }
       const seq = (subscribeSeqRef.current.get(handle) ?? 0) + 1
       subscribeSeqRef.current.set(handle, seq)
       diagnostics.streamArmed(handle, seq, viewportRef.current)
@@ -1635,6 +1529,7 @@ export default function SessionScreen() {
     streamRevision: coveredStreamRevision,
     subscriptionsRef: terminalUnsubsRef,
     subscribingRef: subscribingHandlesRef,
+    leaseOnlyRef: leaseOnlyHandlesRef,
     webReadyRef: webReadyHandlesRef,
     initializedRef: initializedHandlesRef,
     subscribe: subscribeToTerminal,
@@ -1692,7 +1587,8 @@ export default function SessionScreen() {
 
       try {
         const response = await client.sendRequest('terminal.list', {
-          worktree: `id:${worktreeId}`
+          worktree: `id:${worktreeId}`,
+          includeVisualLayouts: false
         })
         if (response.ok) {
           const result = (response as RpcSuccess).result as { terminals: Terminal[] }
@@ -2638,7 +2534,7 @@ export default function SessionScreen() {
   useEffect(() => {
     if (hostId && worktreeId) {
       void AsyncStorage.setItem(
-        'orca:last-visited-worktree',
+        LAST_VISITED_WORKTREE_STORAGE_KEY,
         JSON.stringify({ hostId, worktreeId })
       )
     }
@@ -2870,7 +2766,8 @@ export default function SessionScreen() {
             worktree: `id:${worktreeId}`,
             tabId: matchingTab.id,
             notifyClients: false,
-            navigation: 'caller'
+            navigation: 'caller',
+            intent: 'user'
           }).catch(() => {})
         }
       }
@@ -2910,7 +2807,8 @@ export default function SessionScreen() {
             worktree: `id:${worktreeId}`,
             tabId: tab.id,
             notifyClients: false,
-            navigation: 'caller'
+            navigation: 'caller',
+            intent: 'user'
           }).catch(() => {})
         }
         return
@@ -2934,7 +2832,8 @@ export default function SessionScreen() {
           worktree: `id:${worktreeId}`,
           tabId: tab.id,
           notifyClients: false,
-          navigation: 'caller'
+          navigation: 'caller',
+          intent: 'user'
         }).catch(() => {})
       }
       if (tab.type === 'browser') {
@@ -3191,44 +3090,27 @@ export default function SessionScreen() {
     })
   }, [])
 
-  // Tap a terminal file path → resolve on host, open as file tab (mirrors desktop Cmd/Ctrl-click); silent on a miss.
-  const handleFileTapActivationSeqRef = useRef(0)
-  const handleFileTap = useCallback(
-    (handle: string, pathText: string, line: number | null, column: number | null) => {
-      if (handle !== activeHandleRef.current || !client) {
-        return
-      }
-      const activationSeq = ++handleFileTapActivationSeqRef.current
-      openMobileTerminalFileTap<MobileSessionTab>({
-        client,
-        hostId,
-        worktreeId,
-        worktreeName: routeWorktreeName,
-        terminalHandle: handle,
-        pathText,
-        cwd: terminalCwdRef.current.get(handle) ?? null,
-        line,
-        column,
-        pushPreviewRoute: (href) => router.push(href),
-        openBrowser: (url) => void handleCreateBrowserRef.current?.(url),
-        triggerOpenFeedback: triggerSelection,
-        fetchSessionTabs,
-        getSessionTabs: () => sessionTabsRef.current,
-        getActiveSessionTabId: () => activeSessionTabIdRef.current,
-        getActivationState: (activated) => ({
-          activated,
-          activationSeq,
-          latestActivationSeq: handleFileTapActivationSeqRef.current,
-          sourceTerminalHandle: handle,
-          activeTerminalHandle: activeHandleRef.current,
-          activeTabType: activeSessionTabTypeRef.current
-        }),
-        switchSessionTab: (tab) => switchSessionTabRef.current?.(tab),
-        scheduleDelayedAction
-      })
-    },
-    [client, fetchSessionTabs, hostId, routeWorktreeName, router, scheduleDelayedAction, worktreeId]
-  )
+  // Tap a terminal or chat file path → resolve on host, open as file tab/preview.
+  const { handleFileTap, handleNativeChatFileTap } = useMobileFileTapHandlers<MobileSessionTab>({
+    client,
+    hostId,
+    worktreeId,
+    worktreeName: routeWorktreeName,
+    nativeChatSessionId:
+      activeSessionTab?.type === 'terminal'
+        ? (activeSessionTab.agentStatus?.providerSession?.id ?? null)
+        : null,
+    activeHandleRef,
+    terminalCwdRef,
+    openBrowser: (url) => void handleCreateBrowserRef.current?.(url),
+    fetchSessionTabs,
+    getSessionTabs: () => sessionTabsRef.current,
+    getActiveSessionTabId: () => activeSessionTabIdRef.current,
+    getActiveSessionTabType: () => activeSessionTabTypeRef.current,
+    switchSessionTab: (tab) => switchSessionTabRef.current?.(tab),
+    scheduleDelayedAction,
+    reportChatTapFailure: nativeChatSendError.show
+  })
 
   const handleOpenedFileDiffActivationSeqRef = useRef(0)
   // Capture active tab at tap time; reading it after openDiff would misread a mid-RPC switch and let the retry steal focus.
@@ -3599,6 +3481,7 @@ export default function SessionScreen() {
         if (
           current &&
           current.cursorY === metrics.cursorY &&
+          current.contentBottomRow === metrics.contentBottomRow &&
           current.rows === metrics.rows &&
           current.altScreen === metrics.altScreen
         ) {
@@ -4205,7 +4088,10 @@ export default function SessionScreen() {
       tabId: activePendingTerminalTab.id,
       leafId: activePendingTerminalTab.leafId,
       notifyClients: false,
-      navigation: 'caller'
+      navigation: 'caller',
+      // Why: this only ever runs for the tab the user is looking at, so it is the
+      // tail of their tap — the gesture that materializes a parked pane.
+      intent: 'user'
     })
       .then((response) => {
         if (!response.ok) {
@@ -4280,24 +4166,11 @@ export default function SessionScreen() {
         ? Math.max(0, keyboardHeight - insets.bottom)
         : keyboardHeight
       : 0
-  const activeTerminalKeyboardLift = (() => {
-    if (keyboardLift <= 0 || !activeHandle) {
-      return 0
-    }
-    const metrics = terminalKeyboardMetrics.get(activeHandle)
-    if (!metrics || metrics.rows <= 0 || terminalFrameHeightRef.current <= 0) {
-      return keyboardLift
-    }
-    if (metrics.altScreen) {
-      return keyboardLift
-    }
-    const rowHeight = terminalFrameHeightRef.current / metrics.rows
-    const cursorBottom = (metrics.cursorY + 1) * rowHeight
-    const dockTop = terminalFrameHeightRef.current - keyboardLift
-    const margin = rowHeight
-    // Why: only move the terminal when the cursor would sit under the raised input dock; short top output stays put.
-    return Math.min(keyboardLift, Math.max(0, cursorBottom + margin - dockTop))
-  })()
+  const activeTerminalKeyboardLift = computeActiveTerminalKeyboardLift({
+    keyboardLift,
+    metrics: activeHandle ? terminalKeyboardMetrics.get(activeHandle) : undefined,
+    terminalFrameHeight: terminalFrameHeightRef.current
+  })
   const toastAnimatedStyle = {
     opacity: toastOpacityRef.current,
     transform: [{ translateY: -keyboardLift }]
@@ -4651,7 +4524,7 @@ export default function SessionScreen() {
               </View>
             ) : activeMarkdownTab ? (
               <View style={styles.markdownFrame}>
-                <MarkdownReader
+                <MobileMarkdownReader
                   documentId={activeMarkdownTab.id}
                   doc={markdownDocs.get(activeMarkdownTab.id)}
                   onRefresh={() => void readMarkdownTab(activeMarkdownTab)}
@@ -4761,6 +4634,7 @@ export default function SessionScreen() {
                 ))}
                 <MobileNativeChatOverlay
                   controller={nativeChatController}
+                  onOpenFile={handleNativeChatFileTap}
                   images={nativeChatImages}
                   onMicPress={handleDictationToggle}
                   micActive={dictation.isRecording}
@@ -5000,6 +4874,7 @@ export default function SessionScreen() {
                       <MobileTerminalLiveInputStatus
                         dictation={dictation}
                         isAttaching={isAttaching}
+                        liveInputText={liveInputCapture}
                       />
                     </Pressable>
                     <MobileTerminalInputActions

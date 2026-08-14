@@ -162,7 +162,7 @@ export const glApi = {
   ): Promise<unknown> => ipcRenderer.invoke('gitlab:deleteMRComment', args),
 
   jobTrace: (
-    args: GitLabRepoSelectorArgs & { jobId: number; projectRef?: unknown }
+    args: GitLabRepoSelectorArgs & { jobId: number; projectRef?: unknown; logExcerpt?: boolean }
   ): Promise<unknown> => ipcRenderer.invoke('gitlab:jobTrace', args),
 
   retryJob: (
