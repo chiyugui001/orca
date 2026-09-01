@@ -1,7 +1,11 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useMemo, useState } from 'react'
 import { toast } from 'sonner'
 import { useAppStore } from '@/store'
 import { useMountedRef } from '@/hooks/useMountedRef'
+import { callRuntimeRpc, getActiveRuntimeTarget } from '@/runtime/runtime-rpc-client'
+import type { GitLabCommentResult, GitLabWorkItemDetails } from '../../../../shared/gitlab-types'
+
+const RUNTIME_RPC_TIMEOUT_MS = 30_000
 
 // Encapsulates GitLab MR inline-comment submission so the large diff-viewer
 // files don't carry MR plumbing (they sit at the oxlint max-lines ceiling).
@@ -49,6 +53,12 @@ export function useMRInlineCommentSubmit(
         return wt.repoId ?? null
       }
     }
+    for (const result of Object.values(s.detectedWorktreesByRepo ?? {})) {
+      const wt = result?.worktrees?.find((w) => w.id === activeWorktreeId)
+      if (wt) {
+        return wt.repoId ?? null
+      }
+    }
     return null
   })
   const repoPath = useAppStore((s) => {
@@ -58,16 +68,25 @@ export function useMRInlineCommentSubmit(
     return s.repos.find((r) => r.id === repoId)?.path ?? null
   })
   const mountedRef = useMountedRef()
+  const settings = useAppStore((s) => s.settings)
+  const runtimeTarget = useMemo(() => getActiveRuntimeTarget(settings), [settings])
   const [mrSubmitting, setMrSubmitting] = useState(false)
-  const hasMRContext = Boolean(linkedGitLabMR && repoPath && filePath)
+  const repoSelector = repoId ?? repoPath
+  const hasMRContext = Boolean(
+    linkedGitLabMR && filePath && repoSelector && (runtimeTarget.kind === 'environment' || repoPath)
+  )
 
   const submitToMR = useCallback(
     async (body: string): Promise<boolean> => {
       if (mrSubmitting) {
         return false
       }
-      if (!linkedGitLabMR || !repoPath) {
+      if (!linkedGitLabMR || !repoSelector) {
         toast.error('No GitLab MR linked to this worktree.')
+        return false
+      }
+      if (runtimeTarget.kind !== 'environment' && !repoPath) {
+        toast.error('Could not resolve the local repository path.')
         return false
       }
       if (!filePath) {
@@ -76,12 +95,20 @@ export function useMRInlineCommentSubmit(
       }
       setMrSubmitting(true)
       try {
-        const detailsResult = await window.api.gl.workItemDetails({
-          repoPath,
-          repoId: repoId ?? '',
-          type: 'mr',
-          iid: linkedGitLabMR
-        })
+        const detailsResult =
+          runtimeTarget.kind === 'environment'
+            ? await callRuntimeRpc<GitLabWorkItemDetails | null>(
+                runtimeTarget,
+                'gitlab.workItemDetails',
+                { repo: repoSelector, type: 'mr', iid: linkedGitLabMR },
+                { timeoutMs: RUNTIME_RPC_TIMEOUT_MS }
+              )
+            : await window.api.gl.workItemDetails({
+                repoPath: repoPath!,
+                repoId: repoId ?? '',
+                type: 'mr',
+                iid: linkedGitLabMR
+              })
         const baseSha = detailsResult?.baseSha
         const startSha = detailsResult?.startSha
         const headSha = detailsResult?.headSha
@@ -89,19 +116,28 @@ export function useMRInlineCommentSubmit(
           toast.error('Could not load MR diff references (base/start/head SHA).')
           return false
         }
-        const inlineResult = await window.api.gl.addMRInlineComment({
-          repoPath,
-          repoId: repoId ?? '',
-          iid: linkedGitLabMR,
-          input: {
-            body,
-            path: filePath,
-            line: lineNumber,
-            baseSha,
-            startSha,
-            headSha
-          }
-        })
+        const input = {
+          body,
+          path: filePath,
+          line: lineNumber,
+          baseSha,
+          startSha,
+          headSha
+        }
+        const inlineResult: GitLabCommentResult =
+          runtimeTarget.kind === 'environment'
+            ? await callRuntimeRpc<GitLabCommentResult>(
+                runtimeTarget,
+                'gitlab.addMRInlineComment',
+                { repo: repoSelector, iid: linkedGitLabMR, input },
+                { timeoutMs: RUNTIME_RPC_TIMEOUT_MS }
+              )
+            : await window.api.gl.addMRInlineComment({
+                repoPath: repoPath!,
+                repoId: repoId ?? '',
+                iid: linkedGitLabMR,
+                input
+              })
         if (inlineResult.ok) {
           toast.success('Inline comment posted to MR.')
           return true
@@ -119,7 +155,17 @@ export function useMRInlineCommentSubmit(
         }
       }
     },
-    [filePath, linkedGitLabMR, lineNumber, mrSubmitting, repoId, repoPath]
+    [
+      filePath,
+      linkedGitLabMR,
+      lineNumber,
+      mountedRef,
+      mrSubmitting,
+      repoId,
+      repoPath,
+      repoSelector,
+      runtimeTarget
+    ]
   )
 
   return { hasMRContext, mrSubmitting, submitToMR }

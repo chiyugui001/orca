@@ -24,6 +24,8 @@ describe('gitlab RPC methods', () => {
       addGitLabRepoIssueComment: vi.fn().mockResolvedValue({ ok: true }),
       addGitLabRepoMRComment: vi.fn().mockResolvedValue({ ok: true }),
       addGitLabRepoMRInlineComment: vi.fn().mockResolvedValue({ ok: true }),
+      deleteGitLabRepoMRComment: vi.fn().mockResolvedValue({ ok: true }),
+      replyGitLabRepoMRDiscussion: vi.fn().mockResolvedValue({ ok: true }),
       resolveGitLabRepoMRDiscussion: vi.fn().mockResolvedValue({ ok: true }),
       getGitLabRepoJobTrace: vi.fn().mockResolvedValue({ ok: true, trace: 'log' }),
       retryGitLabRepoJob: vi.fn().mockResolvedValue({ ok: true }),
@@ -64,7 +66,8 @@ describe('gitlab RPC methods', () => {
         repo: 'id:repo-1',
         state: 'opened',
         assignee: '@me',
-        limit: 50
+        limit: 50,
+        page: 2
       })
     )
     await dispatcher.dispatch(
@@ -122,6 +125,23 @@ describe('gitlab RPC methods', () => {
         iid: 8,
         discussionId: 'discussion-1',
         resolved: true,
+        projectRef
+      })
+    )
+    await dispatcher.dispatch(
+      makeRequest('gitlab.replyMRDiscussion', {
+        repo: 'id:repo-1',
+        iid: 8,
+        discussionId: 'discussion-1',
+        body: 'done',
+        projectRef
+      })
+    )
+    await dispatcher.dispatch(
+      makeRequest('gitlab.deleteMRComment', {
+        repo: 'id:repo-1',
+        iid: 8,
+        noteId: 501,
         projectRef
       })
     )
@@ -202,7 +222,7 @@ describe('gitlab RPC methods', () => {
       25,
       'bug'
     )
-    expect(runtime.listGitLabRepoIssues).toHaveBeenCalledWith('id:repo-1', 'opened', '@me', 50)
+    expect(runtime.listGitLabRepoIssues).toHaveBeenCalledWith('id:repo-1', 'opened', '@me', 50, 2)
     expect(runtime.createGitLabRepoIssue).toHaveBeenCalledWith('id:repo-1', 'Fix bug', 'Details')
     expect(runtime.listGitLabRepoTodos).toHaveBeenCalledWith('id:repo-1')
     expect(runtime.listGitLabRepoLabels).toHaveBeenCalledWith('id:repo-1')
@@ -241,6 +261,14 @@ describe('gitlab RPC methods', () => {
       true,
       projectRef
     )
+    expect(runtime.replyGitLabRepoMRDiscussion).toHaveBeenCalledWith(
+      'id:repo-1',
+      8,
+      'discussion-1',
+      'done',
+      projectRef
+    )
+    expect(runtime.deleteGitLabRepoMRComment).toHaveBeenCalledWith('id:repo-1', 8, 501, projectRef)
     expect(runtime.getGitLabRepoJobTrace).toHaveBeenCalledWith('id:repo-1', 99, projectRef)
     expect(runtime.retryGitLabRepoJob).toHaveBeenCalledWith('id:repo-1', 99, projectRef)
     expect(runtime.mergeGitLabRepoMR).toHaveBeenCalledWith('id:repo-1', 8, 'squash', projectRef)
@@ -280,6 +308,30 @@ describe('gitlab RPC methods', () => {
     )
   })
 
+  it('accepts the negotiated ready-for-review update field', async () => {
+    const runtime = {
+      getRuntimeId: () => 'test-runtime',
+      updateGitLabRepoMR: vi.fn().mockResolvedValue({ ok: true })
+    } as unknown as OrcaRuntimeService
+    const dispatcher = new RpcDispatcher({ runtime, methods: GITLAB_METHODS })
+
+    const response = await dispatcher.dispatch(
+      makeRequest('gitlab.updateMR', {
+        repo: 'id:repo-1',
+        iid: 8,
+        updates: { readyForReview: true }
+      })
+    )
+
+    expect(runtime.updateGitLabRepoMR).toHaveBeenCalledWith(
+      'id:repo-1',
+      8,
+      { readyForReview: true },
+      undefined
+    )
+    expect(response).toMatchObject({ ok: true, result: { ok: true } })
+  })
+
   it('normalizes GitLab issue list arguments to match desktop preload behavior', async () => {
     const runtime = {
       getRuntimeId: () => 'test-runtime',
@@ -309,9 +361,17 @@ describe('gitlab RPC methods', () => {
       'id:repo-1',
       'closed',
       undefined,
-      100
+      100,
+      1
     )
-    expect(runtime.listGitLabRepoIssues).toHaveBeenNthCalledWith(2, 'id:repo-1', 'opened', '@me', 1)
+    expect(runtime.listGitLabRepoIssues).toHaveBeenNthCalledWith(
+      2,
+      'id:repo-1',
+      'opened',
+      '@me',
+      1,
+      1
+    )
   })
 
   // Regression for #7732: the WS/relay transports close the connection on frames

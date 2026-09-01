@@ -3,6 +3,7 @@ import { defineMethod, type RpcMethod } from '../core'
 import { OptionalFiniteNumber, OptionalString, requiredString } from '../schemas'
 import { normalizeGitLabIssueListArgs } from '../../../gitlab/gitlab-preload-args'
 import { toGitLabJobLogExcerptResult } from '../../../../shared/gitlab-job-log-excerpt'
+import { GITLAB_MERGE_REQUEST_DISCUSSION_METHODS } from './gitlab-merge-request-discussion-methods'
 
 const RepoSelector = z.object({
   repo: requiredString('Missing repo selector')
@@ -36,7 +37,8 @@ const WorkItemsList = RepoSelector.extend({
 const IssuesList = RepoSelector.extend({
   state: z.unknown().optional(),
   assignee: OptionalString,
-  limit: OptionalFiniteNumber
+  limit: OptionalFiniteNumber,
+  page: OptionalFiniteNumber
 })
 
 const CreateIssue = RepoSelector.extend({
@@ -72,7 +74,8 @@ const UpdateMr = RepoSelector.extend({
     title: z.string().optional(),
     body: z.string().optional(),
     addLabels: z.array(z.string()).optional(),
-    removeLabels: z.array(z.string()).optional()
+    removeLabels: z.array(z.string()).optional(),
+    readyForReview: z.literal(true).optional()
   }),
   projectRef: GitLabProjectRef
 })
@@ -112,13 +115,6 @@ const AddMRInlineComment = RepoSelector.extend({
     startSha: requiredString('Start SHA is required'),
     headSha: requiredString('Head SHA is required')
   }),
-  projectRef: GitLabProjectRef
-})
-
-const ResolveMRDiscussion = RepoSelector.extend({
-  iid: z.number().int().positive(),
-  discussionId: requiredString('Discussion id is required'),
-  resolved: z.boolean(),
   projectRef: GitLabProjectRef
 })
 
@@ -182,7 +178,8 @@ export const GITLAB_METHODS: RpcMethod[] = [
         params.repo,
         normalized.state,
         normalized.assignee,
-        normalized.limit
+        normalized.limit,
+        normalized.page
       )
     }
   }),
@@ -236,18 +233,7 @@ export const GITLAB_METHODS: RpcMethod[] = [
     handler: async (params, { runtime }) =>
       runtime.addGitLabRepoMRInlineComment(params.repo, params.iid, params.input, params.projectRef)
   }),
-  defineMethod({
-    name: 'gitlab.resolveMRDiscussion',
-    params: ResolveMRDiscussion,
-    handler: async (params, { runtime }) =>
-      runtime.resolveGitLabRepoMRDiscussion(
-        params.repo,
-        params.iid,
-        params.discussionId,
-        params.resolved,
-        params.projectRef
-      )
-  }),
+  ...GITLAB_MERGE_REQUEST_DISCUSSION_METHODS,
   defineMethod({
     name: 'gitlab.jobTrace',
     params: JobTrace,

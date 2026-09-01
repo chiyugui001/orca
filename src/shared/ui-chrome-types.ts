@@ -1,5 +1,5 @@
-import type { LinearConcreteWorkspaceId } from './linear-workspace-types'
-import type { LinearCustomViewModel } from './linear-project-types'
+import type { LinearConcreteWorkspaceId } from './linear/workspace-types'
+import type { LinearCustomViewModel } from './linear/project-types'
 
 export type TaskViewPresetId = 'all' | 'issues' | 'review' | 'my-issues' | 'my-prs' | 'prs'
 
@@ -113,5 +113,6 @@ export type TopLevelView =
   | 'activity'
   | 'automations'
   | 'space'
+  | 'skills'
   | 'artifacts'
   | 'mobile'
