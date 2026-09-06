@@ -160,6 +160,35 @@ describe('notes send agent targets', () => {
     expect(targets[0]).toMatchObject({ sessionTitle: 'Fix session picker labels' })
   })
 
+  it('includes the user-defined terminal title alongside the AI Vault session title', () => {
+    const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
+    const targets = deriveNotesSendAgentTargets(
+      state({
+        agentStatusByPaneKey: { [paneKey]: entry(paneKey, 'done') },
+        tabsByWorktree: {
+          [WORKTREE_ID]: [
+            tab(STATUS_TAB_ID, {
+              customTitle: 'Review release notes',
+              aiVaultTitle: {
+                agent: 'codex',
+                sessionId: 'codex-session-1',
+                title: 'Fix session picker labels'
+              }
+            })
+          ]
+        },
+        terminalLayoutsByTabId: { [STATUS_TAB_ID]: leafLayout(LEAF_A, 'pty-a') }
+      }),
+      WORKTREE_ID,
+      NOW
+    )
+
+    expect(targets[0]).toMatchObject({
+      customTitle: 'Review release notes',
+      sessionTitle: 'Fix session picker labels'
+    })
+  })
+
   it('does not use an AI Vault title that belongs to another agent type', () => {
     const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
     const targets = deriveNotesSendAgentTargets(

@@ -21,6 +21,7 @@ export type NotesSendAgentTarget = {
   tabId: string
   leafId: string
   agentType: AgentType | null | undefined
+  customTitle?: string
   sessionTitle?: string
   tabTitle: string
   status: 'eligible' | 'disabled'
@@ -71,12 +72,14 @@ export function deriveNotesSendAgentTargets(
   const targets: NotesSendAgentTarget[] = deriveRunningAgentSendTargets(state, worktreeId, now).map(
     (target) => {
       const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
+      const customTitle = resolveNotesTargetCustomTitle(target.tab)
       const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
       return {
         paneKey: target.paneKey,
         tabId: target.tabId,
         leafId: target.leafId,
         agentType,
+        ...(customTitle ? { customTitle } : {}),
         ...(sessionTitle ? { sessionTitle } : {}),
         tabTitle: target.tab.title,
         status: target.status,
@@ -112,6 +115,10 @@ function resolveNotesTargetAgentType(
     return entryAgentType
   }
   return launchAgent ?? entryAgentType
+}
+
+function resolveNotesTargetCustomTitle(tab: TerminalTab): string | undefined {
+  return tab.customTitle?.trim() || undefined
 }
 
 function resolveNotesTargetSessionTitle(
@@ -152,12 +159,14 @@ function deriveTitleHintAgentTarget(
     titleEvidence.status === 'permission' ? 'Agent needs permission' : undefined
 
   const agentType = tab.launchAgent ?? resolveTerminalTitleAgentType(titleEvidence.title)
+  const customTitle = resolveNotesTargetCustomTitle(tab)
   const sessionTitle = resolveNotesTargetSessionTitle(tab, agentType)
   return {
     paneKey: makePaneKey(tab.id, leafId),
     tabId: tab.id,
     leafId,
     agentType,
+    ...(customTitle ? { customTitle } : {}),
     ...(sessionTitle ? { sessionTitle } : {}),
     tabTitle: tab.title,
     status: disabledReason ? 'disabled' : 'eligible',

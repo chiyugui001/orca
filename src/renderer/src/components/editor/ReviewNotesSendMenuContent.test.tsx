@@ -33,6 +33,7 @@ const harness = vi.hoisted(() => ({
     tabId: string
     leafId: string
     agentType: TuiAgent
+    customTitle?: string
     sessionTitle?: string
     tabTitle: string
     status: 'eligible' | 'disabled'
@@ -468,6 +469,26 @@ describe('ReviewNotesSendMenuContent', () => {
     const item = findByType(render(), 'DropdownMenuItem')
 
     expect(collectText(item)).toMatch(/^Fix session picker labelsCodex/)
+  })
+
+  it('prefers the user-defined title over the provider session title', () => {
+    const paneKey = makePaneKey(TAB_A, LEAF_A)
+    harness.noteTargets = [
+      {
+        paneKey,
+        tabId: TAB_A,
+        leafId: LEAF_A,
+        agentType: 'codex',
+        customTitle: 'Review release notes',
+        sessionTitle: 'Fix session picker labels',
+        tabTitle: 'Codex',
+        status: 'eligible'
+      }
+    ]
+
+    const item = findByType(render(), 'DropdownMenuItem')
+
+    expect(collectText(item)).toMatch(/^Review release notesCodex/)
   })
 
   it('does not target title-detected rows skipped by target derivation', async () => {

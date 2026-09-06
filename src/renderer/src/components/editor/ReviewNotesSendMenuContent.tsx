@@ -244,15 +244,16 @@ function AgentTargetMenuItem({
   disabled: boolean
   onSend: (target: NotesSendAgentTarget) => void
 }): React.JSX.Element {
+  const customTitle = target.customTitle?.trim()
   const sessionTitle = target.sessionTitle?.trim()
   const tabTitle = target.tabTitle.trim()
   const agentTypeLabel = formatAgentTypeLabel(target.agentType ?? agent?.agentType)
-  const primaryLabel = sessionTitle || agentTypeLabel
+  const primaryLabel = customTitle || sessionTitle || agentTypeLabel
   const state = asDotState(agent?.state ?? 'idle', agent?.entry.workingMode)
   const timeAgo = agent ? formatAgentRelativeTime(agent, now) : null
   const disabledReason = target.status === 'disabled' ? target.disabledReason : undefined
   const secondaryParts = [
-    ...(sessionTitle ? [agentTypeLabel] : []),
+    ...(customTitle || sessionTitle ? [agentTypeLabel] : []),
     agentStateLabel(state),
     ...(timeAgo ? [timeAgo] : []),
     ...(tabTitle && tabTitle !== primaryLabel ? [tabTitle] : [])
