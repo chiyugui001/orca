@@ -244,14 +244,18 @@ function AgentTargetMenuItem({
   disabled: boolean
   onSend: (target: NotesSendAgentTarget) => void
 }): React.JSX.Element {
+  const sessionTitle = target.sessionTitle?.trim()
   const tabTitle = target.tabTitle.trim()
+  const agentTypeLabel = formatAgentTypeLabel(target.agentType ?? agent?.agentType)
+  const primaryLabel = sessionTitle || agentTypeLabel
   const state = asDotState(agent?.state ?? 'idle', agent?.entry.workingMode)
   const timeAgo = agent ? formatAgentRelativeTime(agent, now) : null
   const disabledReason = target.status === 'disabled' ? target.disabledReason : undefined
   const secondaryParts = [
+    ...(sessionTitle ? [agentTypeLabel] : []),
     agentStateLabel(state),
     ...(timeAgo ? [timeAgo] : []),
-    ...(tabTitle ? [tabTitle] : [])
+    ...(tabTitle && tabTitle !== primaryLabel ? [tabTitle] : [])
   ]
   return (
     <DropdownMenuItem
@@ -272,9 +276,7 @@ function AgentTargetMenuItem({
       />
       <AgentIcon agent={agentTypeToIconAgent(target.agentType ?? agent?.agentType)} size={14} />
       <span className="grid min-w-0 flex-1 text-left">
-        <span className="truncate">
-          {formatAgentTypeLabel(target.agentType ?? agent?.agentType)}
-        </span>
+        <span className="truncate">{primaryLabel}</span>
         <span className="truncate text-[11px] font-normal text-muted-foreground">
           {secondaryParts.join(' · ')}
         </span>

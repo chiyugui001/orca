@@ -134,6 +134,57 @@ describe('notes send agent targets', () => {
     ])
   })
 
+  it('includes a matching AI Vault session title for the send menu label', () => {
+    const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
+    const targets = deriveNotesSendAgentTargets(
+      state({
+        agentStatusByPaneKey: { [paneKey]: entry(paneKey, 'done') },
+        tabsByWorktree: {
+          [WORKTREE_ID]: [
+            tab(STATUS_TAB_ID, {
+              title: 'Codex',
+              aiVaultTitle: {
+                agent: 'codex',
+                sessionId: 'codex-session-1',
+                title: 'Fix session picker labels'
+              }
+            })
+          ]
+        },
+        terminalLayoutsByTabId: { [STATUS_TAB_ID]: leafLayout(LEAF_A, 'pty-a') }
+      }),
+      WORKTREE_ID,
+      NOW
+    )
+
+    expect(targets[0]).toMatchObject({ sessionTitle: 'Fix session picker labels' })
+  })
+
+  it('does not use an AI Vault title that belongs to another agent type', () => {
+    const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
+    const targets = deriveNotesSendAgentTargets(
+      state({
+        agentStatusByPaneKey: { [paneKey]: entry(paneKey, 'done') },
+        tabsByWorktree: {
+          [WORKTREE_ID]: [
+            tab(STATUS_TAB_ID, {
+              aiVaultTitle: {
+                agent: 'claude',
+                sessionId: 'claude-session-1',
+                title: 'Previous Claude session'
+              }
+            })
+          ]
+        },
+        terminalLayoutsByTabId: { [STATUS_TAB_ID]: leafLayout(LEAF_A, 'pty-a') }
+      }),
+      WORKTREE_ID,
+      NOW
+    )
+
+    expect(targets[0]).not.toHaveProperty('sessionTitle')
+  })
+
   it('keeps permission status-backed targets visible but disabled', () => {
     const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
     const targets = deriveNotesSendAgentTargets(

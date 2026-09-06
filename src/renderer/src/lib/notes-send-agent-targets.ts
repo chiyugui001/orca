@@ -21,6 +21,7 @@ export type NotesSendAgentTarget = {
   tabId: string
   leafId: string
   agentType: AgentType | null | undefined
+  sessionTitle?: string
   tabTitle: string
   status: 'eligible' | 'disabled'
   disabledReason?: string
@@ -68,15 +69,20 @@ export function deriveNotesSendAgentTargets(
   now = Date.now()
 ): NotesSendAgentTarget[] {
   const targets: NotesSendAgentTarget[] = deriveRunningAgentSendTargets(state, worktreeId, now).map(
-    (target) => ({
-      paneKey: target.paneKey,
-      tabId: target.tabId,
-      leafId: target.leafId,
-      agentType: resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent),
-      tabTitle: target.tab.title,
-      status: target.status,
-      ...(target.disabledReason ? { disabledReason: target.disabledReason } : {})
-    })
+    (target) => {
+      const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
+      const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
+      return {
+        paneKey: target.paneKey,
+        tabId: target.tabId,
+        leafId: target.leafId,
+        agentType,
+        ...(sessionTitle ? { sessionTitle } : {}),
+        tabTitle: target.tab.title,
+        status: target.status,
+        ...(target.disabledReason ? { disabledReason: target.disabledReason } : {})
+      }
+    }
   )
 
   for (const tab of state.tabsByWorktree[worktreeId] ?? []) {
@@ -108,6 +114,17 @@ function resolveNotesTargetAgentType(
   return launchAgent ?? entryAgentType
 }
 
+function resolveNotesTargetSessionTitle(
+  tab: TerminalTab,
+  agentType: AgentType | null | undefined
+): string | undefined {
+  const sessionTitle = tab.aiVaultTitle
+  if (!sessionTitle || sessionTitle.agent !== agentType) {
+    return undefined
+  }
+  return sessionTitle.title.trim() || undefined
+}
+
 function deriveTitleHintAgentTarget(
   state: NotesSendAgentTargetState,
   tab: TerminalTab
@@ -134,11 +151,14 @@ function deriveTitleHintAgentTarget(
   const disabledReason =
     titleEvidence.status === 'permission' ? 'Agent needs permission' : undefined
 
+  const agentType = tab.launchAgent ?? resolveTerminalTitleAgentType(titleEvidence.title)
+  const sessionTitle = resolveNotesTargetSessionTitle(tab, agentType)
   return {
     paneKey: makePaneKey(tab.id, leafId),
     tabId: tab.id,
     leafId,
-    agentType: tab.launchAgent ?? resolveTerminalTitleAgentType(titleEvidence.title),
+    agentType,
+    ...(sessionTitle ? { sessionTitle } : {}),
     tabTitle: tab.title,
     status: disabledReason ? 'disabled' : 'eligible',
     ...(disabledReason ? { disabledReason } : {})

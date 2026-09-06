@@ -33,6 +33,7 @@ const harness = vi.hoisted(() => ({
     tabId: string
     leafId: string
     agentType: TuiAgent
+    sessionTitle?: string
     tabTitle: string
     status: 'eligible' | 'disabled'
     disabledReason?: string
@@ -448,6 +449,25 @@ describe('ReviewNotesSendMenuContent', () => {
     expect(collectText(items[0])).toContain('2m ago')
     expect(collectText(items[0])).toContain('Second session')
     expect(collectText(items[1])).toContain('Claude')
+  })
+
+  it('uses the provider session title as the target label while retaining the agent type', () => {
+    const paneKey = makePaneKey(TAB_A, LEAF_A)
+    harness.noteTargets = [
+      {
+        paneKey,
+        tabId: TAB_A,
+        leafId: LEAF_A,
+        agentType: 'codex',
+        sessionTitle: 'Fix session picker labels',
+        tabTitle: 'Codex',
+        status: 'eligible'
+      }
+    ]
+
+    const item = findByType(render(), 'DropdownMenuItem')
+
+    expect(collectText(item)).toMatch(/^Fix session picker labelsCodex/)
   })
 
   it('does not target title-detected rows skipped by target derivation', async () => {
