@@ -74,9 +74,7 @@ export default function MarkdownPreview({
     <MarkdownPreviewSurface
       foundation={foundation}
       viewport={viewport}
-      reviewActions={reviewActions}
       components={components}
-      filePath={filePath}
       showTableOfContents={showTableOfContents}
       onCloseTableOfContents={onCloseTableOfContents}
     />

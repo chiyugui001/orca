@@ -20,6 +20,8 @@ import { ShortcutKeyCombo } from '@/components/ShortcutKeyCombo'
 import type { ArtifactWriteRequest } from '../../../../shared/artifacts'
 import { ArtifactPublishButton } from '@/components/artifacts/ArtifactPublishButton'
 import { markdownArtifactSourceKey } from './markdown-artifact-upload'
+import { MarkdownPreviewReviewToolbar } from './MarkdownPreviewReviewToolbar'
+import { useMarkdownReviewNavigation } from './markdown-preview-review-navigation-context'
 
 type EditorPanelHeaderProps = {
   activeFile: OpenFile
@@ -102,6 +104,7 @@ export function EditorPanelHeader({
     () => diffComments.filter((comment) => comment.filePath === activeFile.relativePath),
     [activeFile.relativePath, diffComments]
   )
+  const { source: markdownReviewSource } = useMarkdownReviewNavigation()
   const { changeCount, goToPreviousDiff, goToNextDiff } = useDiffNavigation()
   const previousChangeShortcut = useShortcutKeyDetails('editor.previousChange')
   const nextChangeShortcut = useShortcutKeyDetails('editor.nextChange')
@@ -316,6 +319,17 @@ export function EditorPanelHeader({
           </Tooltip>
         </TooltipProvider>
       )}
+      {isMarkdown &&
+      activeFile.mode === 'markdown-preview' &&
+      markdownReviewSource ? (
+        <MarkdownPreviewReviewToolbar
+          worktreeId={markdownReviewSource.worktreeId}
+          groupId={activeGroupId ?? markdownReviewSource.worktreeId}
+          filePath={markdownReviewSource.filePath}
+          content={markdownReviewSource.content}
+          notes={markdownReviewSource.notes}
+        />
+      ) : null}
       {isMarkdown && !isDiffSurface && createMarkdownArtifactRequest ? (
         <ArtifactPublishButton
           sourceKey={markdownArtifactSourceKey(activeFile)}

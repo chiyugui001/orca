@@ -42,6 +42,21 @@ vi.mock('./EditorPanelMarkdownActionsMenu', () => ({
   EditorPanelMarkdownActionsMenu: () => null
 }))
 
+vi.mock('./MarkdownPreviewReviewToolbar', () => ({
+  MarkdownPreviewReviewToolbar: () => <div data-markdown-review-toolbar />
+}))
+
+vi.mock('./markdown-preview-review-navigation-context', () => ({
+  useMarkdownReviewNavigation: () => ({
+    source: {
+      worktreeId: 'repo::/repo',
+      filePath: 'file.md',
+      content: '# Notes',
+      notes: []
+    }
+  })
+}))
+
 vi.mock('@/components/artifacts/ArtifactPublishButton', () => ({
   ArtifactPublishButton: () => <button data-artifact-publish />
 }))
@@ -137,5 +152,23 @@ describe('EditorPanelHeader', () => {
         createMarkdownArtifactRequest: createRequest
       })
     ).not.toContain('data-artifact-publish')
+  })
+
+  it('places Markdown review controls beside the table of contents toggle in preview mode', () => {
+    const previewFile = {
+      ...activeFile,
+      mode: 'markdown-preview' as const,
+      language: 'markdown'
+    }
+
+    const html = renderHeader({
+      activeFile: previewFile,
+      isDiffSurface: false,
+      isMarkdown: true,
+      canShowMarkdownTableOfContents: true
+    })
+
+    expect(html).toContain('aria-label="Table of Contents"')
+    expect(html).toContain('data-markdown-review-toolbar="true"')
   })
 })

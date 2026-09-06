@@ -1,10 +1,11 @@
-import { useCallback } from 'react'
+import { useCallback, useEffect } from 'react'
 import { copyMarkdownReviewNotesForAgent } from '@/lib/markdown-review-note-copy'
 import type { MarkdownReviewNote } from '@/lib/markdown-review-notes'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
 import type { MarkdownPreviewBlockRange } from './markdown-preview-types'
 import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundation'
 import type { MarkdownPreviewViewport } from './use-markdown-preview-viewport'
+import { useMarkdownReviewNavigation } from './markdown-preview-review-navigation-context'
 
 function isMarkdownAnnotationNavigationClick(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) {
@@ -35,9 +36,16 @@ export function useMarkdownPreviewReviewActions({
     setAttentionReviewCommentId,
     setActiveReviewCommentId,
     markdownComments,
-    activeReviewCommentId
+    activeReviewCommentId,
+    sourceWorktree,
+    sourceRelativePath,
+    canShowReviewTools
   } = foundation
   const { clearReviewNotesCopiedResetTimer, clearCopiedReviewNoteResetTimer } = viewport
+  const {
+    registerMarkdownReviewNavigation,
+    clearMarkdownReviewNavigation
+  } = useMarkdownReviewNavigation()
 
   const handleCopyMarkdownReviewNotes = useCallback(async (): Promise<void> => {
     if (markdownReviewNotes.length === 0) {
@@ -193,6 +201,65 @@ export function useMarkdownPreviewReviewActions({
     },
     [activeReviewCommentId, getMarkdownCommentsForRange, scrollRenderedMarkdownReviewNoteIntoView]
   )
+
+  const activeReviewNoteIndex = markdownReviewNotes.findIndex(
+    (note) => note.id === activeReviewCommentId
+  )
+  const canGoToPrevious =
+    markdownReviewNotes.length > 0 &&
+    (activeReviewNoteIndex === -1 || activeReviewNoteIndex > 0)
+  const canGoToNext =
+    markdownReviewNotes.length > 0 &&
+    (activeReviewNoteIndex === -1 || activeReviewNoteIndex < markdownReviewNotes.length - 1)
+  const goToPreviousReviewNote = useCallback((): void => {
+    const note =
+      activeReviewNoteIndex === -1
+        ? markdownReviewNotes.at(-1)
+        : markdownReviewNotes[activeReviewNoteIndex - 1]
+    if (note) {
+      scrollRenderedMarkdownReviewNoteIntoView(note)
+    }
+  }, [activeReviewNoteIndex, markdownReviewNotes, scrollRenderedMarkdownReviewNoteIntoView])
+  const goToNextReviewNote = useCallback((): void => {
+    const note =
+      activeReviewNoteIndex === -1
+        ? markdownReviewNotes[0]
+        : markdownReviewNotes[activeReviewNoteIndex + 1]
+    if (note) {
+      scrollRenderedMarkdownReviewNoteIntoView(note)
+    }
+  }, [activeReviewNoteIndex, markdownReviewNotes, scrollRenderedMarkdownReviewNoteIntoView])
+
+  useEffect(() => {
+    registerMarkdownReviewNavigation({
+      canGoToPrevious,
+      canGoToNext,
+      goToPrevious: goToPreviousReviewNote,
+      goToNext: goToNextReviewNote,
+      source:
+        canShowReviewTools && sourceWorktree && sourceRelativePath !== null
+          ? {
+              worktreeId: sourceWorktree.id,
+              filePath: sourceRelativePath,
+              content: renderedContent,
+              notes: markdownReviewNotes
+            }
+          : null
+    })
+    return clearMarkdownReviewNavigation
+  }, [
+    canGoToNext,
+    canGoToPrevious,
+    clearMarkdownReviewNavigation,
+    canShowReviewTools,
+    goToNextReviewNote,
+    goToPreviousReviewNote,
+    markdownReviewNotes,
+    registerMarkdownReviewNavigation,
+    renderedContent,
+    sourceRelativePath,
+    sourceWorktree
+  ])
 
   return {
     handleCopyMarkdownReviewNotes,

@@ -10,6 +10,7 @@ import { exportActiveMarkdownToPdf } from './export-active-markdown'
 import type { EditorToggleValue } from './EditorViewToggle'
 import { EditorPanelShell } from './EditorPanelShell'
 import { DiffNavigationProvider } from './diff-navigation-context'
+import { MarkdownReviewNavigationProvider } from './markdown-preview-review-navigation-context'
 import { canUseChangesModeForFile } from './editor-panel-file-mode'
 import { getEditorPanelRenderModel } from './editor-panel-render-model'
 import { useClosedEditorTabCleanup } from './useClosedEditorTabCleanup'
@@ -17,7 +18,7 @@ import { useEditorCmdSaveRequest } from './useEditorCmdSaveRequest'
 import { useEditorPanelContentState } from './useEditorPanelContentState'
 import { useMarkdownPreviewShortcut } from './useMarkdownPreviewShortcut'
 import { useUntitledFileRename } from './useUntitledFileRename'
-import { extractFrontMatter } from './markdown-frontmatter'
+import { getEditorPanelMarkdownState } from './editor-panel-markdown-state'
 import {
   selectEditorPanelGitBranchEntries,
   selectEditorPanelGitStatusEntries
@@ -320,44 +321,31 @@ function EditorPanelInner({
       settings,
       renameDialogFile?.runtimeEnvironmentId
     )?.activeRuntimeEnvironmentId?.trim() ||
-    (renameDialogFile ? getConnectionId(renameDialogFile.worktreeId) : null)
+      (renameDialogFile ? getConnectionId(renameDialogFile.worktreeId) : null)
   )
-  const markdownDocumentStateFileId =
-    activeFile.mode === 'markdown-preview'
-      ? (activeFile.markdownPreviewSourceFileId ?? activeFile.filePath)
-      : activeFile.id
-  let activeMarkdownContent: string | null = null
-  if (activeFile.mode === 'markdown-preview') {
-    activeMarkdownContent =
-      editorDrafts[markdownDocumentStateFileId] ?? fileContents[activeFile.id]?.content ?? null
-  } else if (activeFile.mode === 'edit') {
-    activeMarkdownContent =
-      editorDrafts[activeFile.id] ?? fileContents[activeFile.id]?.content ?? null
-  }
-  const canShowMarkdownFrontmatterToggle = Boolean(
-    model.isMarkdown &&
-    (activeFile.mode === 'markdown-preview' || model.mdViewMode !== 'source') &&
-    activeMarkdownContent &&
-    extractFrontMatter(activeMarkdownContent)
-  )
+  const markdownState = getEditorPanelMarkdownState({
+    activeFile,
+    editorDrafts,
+    fileContents,
+    isMarkdown: model.isMarkdown,
+    markdownViewMode: model.mdViewMode
+  })
+  const {
+    documentStateFileId: markdownDocumentStateFileId,
+    content: activeMarkdownContent,
+    canShowFrontmatterToggle: canShowMarkdownFrontmatterToggle
+  } = markdownState
   // Why: front-matter shows by default; the map only carries per-file hide overrides.
   const isMarkdownFrontmatterVisible =
     markdownFrontmatterVisible[markdownDocumentStateFileId] ?? true
-  const isMarkdownTableOfContentsVisible =
-    markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? false
-  const createActiveMarkdownArtifactRequest = () =>
-    Promise.resolve(
-      createCurrentMarkdownArtifactRequest(
-        activeFile,
-        markdownDocumentStateFileId,
-        activeMarkdownContent ?? ''
-      )
-    )
+  const isMarkdownTableOfContentsVisible = markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? false
+  const createActiveMarkdownArtifactRequest = () => Promise.resolve(createCurrentMarkdownArtifactRequest(activeFile, markdownDocumentStateFileId, activeMarkdownContent ?? ''))
 
   return (
     // Why: each split pane needs an isolated bridge between its diff editor and header controls.
     <DiffNavigationProvider>
-      <EditorPanelShell
+      <MarkdownReviewNavigationProvider>
+        <EditorPanelShell
         panelRef={setPanelRef}
         activeFile={activeFile}
         activeViewStateId={activeViewStateId}
@@ -382,34 +370,22 @@ function EditorPanelInner({
         onOpenContainingFolder={handleOpenContainingFolder}
         onToggleSideBySide={() => setSideBySide((prev) => !prev)}
         onEditorToggleChange={handleEditorToggleChange}
-        onToggleMarkdownTableOfContents={() =>
-          setMarkdownTableOfContentsVisible(
-            markdownDocumentStateFileId,
-            !isMarkdownTableOfContentsVisible
-          )
-        }
-        onToggleMarkdownFrontmatter={() =>
-          setMarkdownFrontmatterVisible(markdownDocumentStateFileId, !isMarkdownFrontmatterVisible)
-        }
-        onExportMarkdownToPdf={() =>
-          void exportActiveMarkdownToPdf({ fileId: activeFile.id, root: panelRef.current })
-        }
-        createMarkdownArtifactRequest={
-          activeMarkdownContent === null ? undefined : createActiveMarkdownArtifactRequest
-        }
+        onToggleMarkdownTableOfContents={() => setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, !isMarkdownTableOfContentsVisible)}
+        onToggleMarkdownFrontmatter={() => setMarkdownFrontmatterVisible(markdownDocumentStateFileId, !isMarkdownFrontmatterVisible)}
+        onExportMarkdownToPdf={() => void exportActiveMarkdownToPdf({ fileId: activeFile.id, root: panelRef.current })}
+        createMarkdownArtifactRequest={activeMarkdownContent === null ? undefined : createActiveMarkdownArtifactRequest}
         onContentChange={handleContentChange}
         onContentChangeForFile={handleContentChangeForFile}
         onDirtyStateHint={handleDirtyStateHint}
         onSave={handleSave}
         onSaveForFile={handleSaveForFile}
         onReloadContent={reloadContent}
-        onCloseMarkdownTableOfContents={() =>
-          setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, false)
-        }
+        onCloseMarkdownTableOfContents={() => setMarkdownTableOfContentsVisible(markdownDocumentStateFileId, false)}
         onCloseRenameDialog={closeRenameDialog}
         onRenameConfirm={handleRenameConfirm}
         markdownAnnotationsEnabled={markdownAnnotationsEnabled}
-      />
+        />
+      </MarkdownReviewNavigationProvider>
     </DiffNavigationProvider>
   )
 }

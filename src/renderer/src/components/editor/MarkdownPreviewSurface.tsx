@@ -2,32 +2,25 @@ import type { Components } from 'react-markdown'
 import { translate } from '@/i18n/i18n'
 import { MarkdownTableOfContentsPanel } from './MarkdownTableOfContentsPanel'
 import { MarkdownPreviewBody } from './MarkdownPreviewBody'
-import { MarkdownPreviewReviewToolbar } from './MarkdownPreviewReviewToolbar'
 import { MarkdownPreviewSearchBar } from './MarkdownPreviewSearchBar'
 import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundation'
-import type { MarkdownPreviewReviewActions } from './use-markdown-preview-review-actions'
 import type { MarkdownPreviewViewport } from './use-markdown-preview-viewport'
 
 export function MarkdownPreviewSurface({
   foundation,
   viewport,
-  reviewActions,
   components,
-  filePath,
   showTableOfContents,
   onCloseTableOfContents
 }: {
   foundation: MarkdownPreviewFoundation
   viewport: MarkdownPreviewViewport
-  reviewActions: MarkdownPreviewReviewActions
   components: Components
-  filePath: string
   showTableOfContents: boolean
   onCloseTableOfContents?: () => void
 }): React.JSX.Element {
   const {
     isSearchOpen,
-    canShowReviewTools,
     tableOfContentsItems,
     editorFontSize,
     isDark,
@@ -55,13 +48,6 @@ export function MarkdownPreviewSurface({
       >
         {isSearchOpen ? (
           <MarkdownPreviewSearchBar foundation={foundation} viewport={viewport} />
-        ) : null}
-        {canShowReviewTools ? (
-          <MarkdownPreviewReviewToolbar
-            foundation={foundation}
-            reviewActions={reviewActions}
-            filePath={filePath}
-          />
         ) : null}
         {/* Why: OS page translation can replace react-owned text nodes and crash reconciliation. */}
         <div ref={bodyRef} className="markdown-body" translate="no">
