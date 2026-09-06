@@ -168,7 +168,7 @@ export function useMarkdownPreviewComponents({
       pre: ({ node, children, ...props }) => {
         const child = React.Children.toArray(children)[0]
         if (React.isValidElement(child) && child.type === MermaidBlock) {
-          return <>{children}</>
+          return wrapAnnotatedBlock('pre', node as MarkdownPreviewPositionNode, <>{children}</>)
         }
         return wrapAnnotatedBlock(
           'pre',

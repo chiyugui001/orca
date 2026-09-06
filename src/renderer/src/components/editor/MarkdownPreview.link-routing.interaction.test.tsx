@@ -233,4 +233,28 @@ describe('MarkdownPreview http link routing (Cmd vs Cmd+Shift click)', () => {
     })
     expect(openUrlMock).not.toHaveBeenCalled()
   })
+
+  it('lets an annotated Mermaid diagram receive a review note', () => {
+    const worktree = { id: 'wt-1', path: '/repo', diffComments: [] as never[] }
+    worktreeLookup.value = [worktree]
+    storeState.worktreesByRepo = { repo: [worktree] }
+
+    container = document.createElement('div')
+    document.body.appendChild(container)
+    root = createRoot(container)
+    act(() => {
+      root.render(
+        <MarkdownPreview
+          content={'```mermaid\ngraph TD\n  A --> B\n```'}
+          filePath="/repo/docs/README.md"
+          sourceWorktreeId="wt-1"
+          scrollCacheKey="test-key"
+          markdownAnnotationsEnabled
+        />
+      )
+    })
+
+    expect(container.querySelector('.markdown-annotation-block')).not.toBeNull()
+    expect(container.querySelector('[aria-label="Add note"]')).not.toBeNull()
+  })
 })

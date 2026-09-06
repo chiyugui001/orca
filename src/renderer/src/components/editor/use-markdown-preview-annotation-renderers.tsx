@@ -38,6 +38,7 @@ export function useMarkdownPreviewAnnotationRenderers({
   const {
     sourceWorktree,
     sourceRelativePath,
+    rootRef,
     activeAnnotationBlockKey,
     setActiveAnnotationBlockKey,
     activeReviewCommentId,
@@ -70,6 +71,8 @@ export function useMarkdownPreviewAnnotationRenderers({
       const commentsForBlock = getMarkdownCommentsForRange(range)
 
       const handleSubmit = async (body: string): Promise<boolean> => {
+        const scrollContainer = rootRef.current
+        const scrollTopBeforeSubmit = scrollContainer?.scrollTop
         const result = await addDiffComment({
           worktreeId: sourceWorktree.id,
           filePath: sourceRelativePath,
@@ -82,6 +85,12 @@ export function useMarkdownPreviewAnnotationRenderers({
         })
         if (result) {
           setActiveAnnotationBlockKey(null)
+          if (scrollContainer && scrollTopBeforeSubmit !== undefined) {
+            window.requestAnimationFrame(() => {
+              const maxScrollTop = Math.max(0, scrollContainer.scrollHeight - scrollContainer.clientHeight)
+              scrollContainer.scrollTop = Math.min(scrollTopBeforeSubmit, maxScrollTop)
+            })
+          }
           return true
         }
         return false
@@ -205,6 +214,7 @@ export function useMarkdownPreviewAnnotationRenderers({
       markdownAnnotationsEnabled,
       content,
       renderedContent,
+      rootRef,
       setActiveAnnotationBlockKey,
       sourceRelativePath,
       sourceWorktree,
