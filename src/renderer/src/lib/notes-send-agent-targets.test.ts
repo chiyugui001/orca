@@ -580,7 +580,7 @@ describe('notes send agent targets', () => {
     ])
   })
 
-  it('keeps a stale status-backed launch-agent pane disabled with only a bare agent title', () => {
+  it('keeps a stale completed pane selectable for runtime verification', () => {
     const paneKey = makePaneKey(LAUNCH_TAB_ID, LEAF_B)
     const targets = deriveNotesSendAgentTargets(
       state({
@@ -599,8 +599,8 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey,
-        status: 'disabled',
-        disabledReason: 'Agent status is stale'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
@@ -654,8 +654,7 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey: stalePaneKey,
-        status: 'disabled',
-        disabledReason: 'Agent status is stale'
+        status: 'eligible'
       }),
       expect.objectContaining({
         paneKey: livePaneKey,
@@ -686,8 +685,7 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey: stalePaneKey,
-        status: 'disabled',
-        disabledReason: 'Agent status is stale'
+        status: 'eligible'
       })
     ])
   })

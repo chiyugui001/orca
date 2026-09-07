@@ -26,6 +26,7 @@ export type NotesSendAgentTarget = {
   tabTitle: string
   status: 'eligible' | 'disabled'
   disabledReason?: string
+  runtimeVerificationRequired?: boolean
 }
 
 type AgentTitleEvidence = {
@@ -74,6 +75,12 @@ export function deriveNotesSendAgentTargets(
       const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
       const customTitle = resolveNotesTargetCustomTitle(target.tab)
       const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
+      // A completed turn can leave its TUI idle for hours. The runtime performs
+      // an agent-status check immediately before the guarded write.
+      const needsRuntimeProbe =
+        target.entry.state === 'done' &&
+        target.ptyId !== null &&
+        target.disabledReason === 'Agent status is stale'
       return {
         paneKey: target.paneKey,
         tabId: target.tabId,
@@ -82,8 +89,11 @@ export function deriveNotesSendAgentTargets(
         ...(customTitle ? { customTitle } : {}),
         ...(sessionTitle ? { sessionTitle } : {}),
         tabTitle: target.tab.title,
-        status: target.status,
-        ...(target.disabledReason ? { disabledReason: target.disabledReason } : {})
+        status: needsRuntimeProbe ? 'eligible' : target.status,
+        ...(needsRuntimeProbe ? { runtimeVerificationRequired: true } : {}),
+        ...(!needsRuntimeProbe && target.disabledReason
+          ? { disabledReason: target.disabledReason }
+          : {})
       }
     }
   )
@@ -193,7 +203,10 @@ function mergeLaunchAgentTitleTarget(
   const samePaneIndex = targets.findIndex((existing) => existing.paneKey === target.paneKey)
   if (samePaneIndex !== -1) {
     const existing = targets[samePaneIndex]
-    if (existing.status === 'eligible' || existing.disabledReason === 'Agent needs permission') {
+    if (
+      (existing.status === 'eligible' && !existing.runtimeVerificationRequired) ||
+      existing.disabledReason === 'Agent needs permission'
+    ) {
       return
     }
 
@@ -217,7 +230,8 @@ function mergeLaunchAgentTitleTarget(
     targets.some(
       (existing) =>
         existing.tabId === target.tabId &&
-        (existing.status === 'eligible' || existing.disabledReason === 'Agent needs permission')
+        ((existing.status === 'eligible' && !existing.runtimeVerificationRequired) ||
+          existing.disabledReason === 'Agent needs permission')
     )
   ) {
     return
