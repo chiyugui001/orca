@@ -15,6 +15,7 @@ import { flushPendingProseMirrorSelection } from './rich-markdown-selection-flus
 import { useRichMarkdownReviewData } from './useRichMarkdownReviewData'
 import { useRichMarkdownReviewCopyFeedback } from './useRichMarkdownReviewCopyFeedback'
 import { useRichMarkdownReviewRailController } from './useRichMarkdownReviewRailController'
+import { useRichMarkdownReviewNavigation } from './useRichMarkdownReviewNavigation'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
 
 type UseRichMarkdownReviewControllerOptions = {
@@ -63,14 +64,12 @@ export function useRichMarkdownReviewController({
     canAnnotateRichMarkdown,
     markdownComments,
     markdownReviewNotes,
-    sourceRelativePath,
-    unsentMarkdownReviewScope
+    sourceRelativePath
   } = useRichMarkdownReviewData({
     allDiffComments,
     filePath,
     markdownAnnotationFilePath,
     markdownAnnotationsEnabled,
-    markdownReviewContent,
     worktreeRoot
   })
 
@@ -94,11 +93,27 @@ export function useRichMarkdownReviewController({
     markdownSourceLineOffsetRef,
     scrollContainerRef
   })
-  const { cancelNotePositionFrame, clearAttentionTimers, setReviewRailOpen } = rail
+  const {
+    cancelNotePositionFrame,
+    clearAttentionTimers,
+    reviewRailOpen,
+    scrollRichMarkdownReviewNoteCardIntoView,
+    setReviewRailOpen
+  } = rail
   const reviewRailExpanded = shouldExpandRichMarkdownReviewRail({
     hasReviewNotes: markdownComments.length > 0,
-    reviewRailOpen: rail.reviewRailOpen,
+    reviewRailOpen,
     hasDraftNote: annotationPopover !== null
+  })
+  useRichMarkdownReviewNavigation({
+    activeReviewCommentId: rail.activeReviewCommentId,
+    markdownReviewContent,
+    markdownReviewNotes,
+    reviewRailOpen,
+    scrollReviewNoteIntoView: scrollRichMarkdownReviewNoteCardIntoView,
+    setReviewRailOpen,
+    sourceRelativePath,
+    worktreeId
   })
 
   const clearAllAnnotationHighlights = useCallback((): void => {
@@ -302,8 +317,7 @@ export function useRichMarkdownReviewController({
     reviewRailExpanded,
     setAnnotationPopover,
     submitAnnotation,
-    syncAnnotationTarget,
-    unsentMarkdownReviewScope
+    syncAnnotationTarget
   }
 }
 

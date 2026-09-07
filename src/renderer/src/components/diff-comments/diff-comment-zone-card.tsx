@@ -3,7 +3,6 @@ import type { Root } from 'react-dom/client'
 import { getDiffCommentLineLabel } from '@/lib/diff-comment-compat'
 import { formatDiffComments } from '@/lib/diff-comments-format'
 import { TooltipProvider } from '@/components/ui/tooltip'
-import type { DiffCommentDeliverySnapshot } from '@/store/slices/diffComments'
 import { DiffCommentCard } from './DiffCommentCard'
 import type { DecoratedDiffComment } from './decorated-diff-comment'
 import { NotesSendMenu, type NotesSendMenuScope } from '../editor/NotesSendMenu'
@@ -52,9 +51,9 @@ export type DiffCommentZoneCardContext = {
   resizeZone: (commentId: string) => void
   onDeleteCommentRef: RefObject<(commentId: string) => void>
   onUpdateCommentRef: RefObject<((commentId: string, body: string) => Promise<boolean>) | undefined>
-  clearDeliveredDiffComments: (
+  markDiffCommentsSent: (
     worktreeId: string,
-    comments: readonly DiffCommentDeliverySnapshot[]
+    commentIds: readonly string[]
   ) => Promise<boolean>
 }
 
@@ -69,7 +68,7 @@ export function renderDiffCommentZoneCard(
     resizeZone,
     onDeleteCommentRef,
     onUpdateCommentRef,
-    clearDeliveredDiffComments
+    markDiffCommentsSent
   }: DiffCommentZoneCardContext
 ): void {
   root.render(
@@ -110,7 +109,9 @@ export function renderDiffCommentZoneCard(
               targetModeLabel="This note"
               triggerClassName="orca-diff-comment-edit"
               disabledTooltip="Note already sent"
-              onDelivered={(notes) => void clearDeliveredDiffComments(worktreeId, notes)}
+              onDelivered={(notes) =>
+                void markDiffCommentsSent(worktreeId, notes.map((note) => note.id))
+              }
             />
           ) : null
         }

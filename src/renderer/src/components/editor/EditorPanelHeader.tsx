@@ -319,9 +319,7 @@ export function EditorPanelHeader({
           </Tooltip>
         </TooltipProvider>
       )}
-      {isMarkdown &&
-      activeFile.mode === 'markdown-preview' &&
-      markdownReviewSource ? (
+      {isMarkdown && markdownReviewSource ? (
         <MarkdownPreviewReviewToolbar
           worktreeId={markdownReviewSource.worktreeId}
           groupId={activeGroupId ?? markdownReviewSource.worktreeId}

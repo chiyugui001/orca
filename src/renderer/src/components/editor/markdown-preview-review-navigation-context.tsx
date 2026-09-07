@@ -13,12 +13,14 @@ type MarkdownReviewNavigationRegistration = {
   canGoToNext: boolean
   goToPrevious: () => void
   goToNext: () => void
+  reviewRailOpen?: boolean
+  toggleReviewRail?: () => void
   source: MarkdownReviewNavigationSource | null
 }
 
 type MarkdownReviewNavigationState = Pick<
   MarkdownReviewNavigationRegistration,
-  'canGoToPrevious' | 'canGoToNext'
+  'canGoToPrevious' | 'canGoToNext' | 'reviewRailOpen' | 'toggleReviewRail'
 > & { source: MarkdownReviewNavigationSource | null }
 
 type MarkdownReviewNavigationContextValue = MarkdownReviewNavigationState & {
@@ -26,6 +28,8 @@ type MarkdownReviewNavigationContextValue = MarkdownReviewNavigationState & {
   clearMarkdownReviewNavigation: () => void
   goToPreviousReviewNote: () => void
   goToNextReviewNote: () => void
+  reviewRailOpen?: boolean
+  toggleReviewRail?: () => void
 }
 
 const EMPTY_STATE: MarkdownReviewNavigationState = {
@@ -59,11 +63,19 @@ export function MarkdownReviewNavigationProvider({
         current.source?.worktreeId === registration.source?.worktreeId &&
         current.source?.filePath === registration.source?.filePath &&
         current.source?.content === registration.source?.content &&
-        current.source?.notes === registration.source?.notes
+        current.source?.notes === registration.source?.notes &&
+        current.reviewRailOpen === registration.reviewRailOpen &&
+        current.toggleReviewRail === registration.toggleReviewRail
           ? current
           : {
               canGoToPrevious: registration.canGoToPrevious,
               canGoToNext: registration.canGoToNext,
+              ...(registration.reviewRailOpen === undefined
+                ? {}
+                : { reviewRailOpen: registration.reviewRailOpen }),
+              ...(registration.toggleReviewRail === undefined
+                ? {}
+                : { toggleReviewRail: registration.toggleReviewRail }),
               source: registration.source
             }
       )

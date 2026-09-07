@@ -58,7 +58,7 @@ export function useMarkdownPreviewSourceFoundation({
   const addDiffComment = useAppStore((s) => s.addDiffComment)
   const deleteDiffComment = useAppStore((s) => s.deleteDiffComment)
   const updateDiffComment = useAppStore((s) => s.updateDiffComment)
-  const clearDeliveredDiffComments = useAppStore((s) => s.clearDeliveredDiffComments)
+  const markDiffCommentsSent = useAppStore((s) => s.markDiffCommentsSent)
   const keybindings = useAppStore((s) => s.keybindings)
   const worktreesByRepo = useAppStore((s) => s.worktreesByRepo)
   const sourceOpenFile = useAppStore((s) =>
@@ -184,7 +184,7 @@ export function useMarkdownPreviewSourceFoundation({
     addDiffComment,
     deleteDiffComment,
     updateDiffComment,
-    clearDeliveredDiffComments,
+    markDiffCommentsSent,
     keybindings,
     worktreesByRepo,
     sourceWorktree,

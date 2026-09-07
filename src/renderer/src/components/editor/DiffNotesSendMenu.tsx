@@ -38,7 +38,7 @@ export function DiffNotesSendMenu({
   // request. Enable on exactly one instance per worktree to avoid double-open.
   respondToOpenRequest?: boolean
 }): React.JSX.Element {
-  const clearDeliveredDiffComments = useAppStore((s) => s.clearDeliveredDiffComments)
+  const markDiffCommentsSent = useAppStore((s) => s.markDiffCommentsSent)
   const openRequest = useAppStore((s) => s.diffNotesSendMenuOpenRequest)
   const consumeOpenRequest = useAppStore((s) => s.consumeDiffNotesSendMenuOpenRequest)
   // Why: the TTL is a deadline, not a label, so it is enforced on the commit
@@ -101,7 +101,7 @@ export function DiffNotesSendMenu({
       openRequestNonce={openRequestNonce}
       openRequestExpiresAt={openRequestExpiresAt}
       onOpenRequestHandled={handleOpenRequestHandled}
-      onDelivered={(notes) => void clearDeliveredDiffComments(worktreeId, notes)}
+      onDelivered={(notes) => void markDiffCommentsSent(worktreeId, notes.map((note) => note.id))}
     />
   )
 }

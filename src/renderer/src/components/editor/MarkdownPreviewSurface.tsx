@@ -43,7 +43,7 @@ export function MarkdownPreviewSurface({
     copiedReviewNoteId,
     deleteDiffComment,
     updateDiffComment,
-    clearDeliveredDiffComments
+    markDiffCommentsSent
   } = foundation
   const { positions, requestSyncPositions } = useMarkdownPreviewReviewRail({ foundation })
 
@@ -95,7 +95,12 @@ export function MarkdownPreviewSurface({
             onDeleteComment={(commentId) => void deleteDiffComment(sourceWorktree.id, commentId)}
             onSubmitEdit={(commentId, body) => updateDiffComment(sourceWorktree.id, commentId, body)}
             onContentResize={requestSyncPositions}
-            onDelivered={(notes) => void clearDeliveredDiffComments(sourceWorktree.id, notes)}
+            onDelivered={(notes) =>
+              void markDiffCommentsSent(
+                sourceWorktree.id,
+                notes.map((note) => note.id)
+              )
+            }
           />
         ) : null}
       </div>

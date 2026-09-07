@@ -5,7 +5,8 @@ import type { editor as MonacoEditor } from 'monaco-editor'
 
 const storeFixture = vi.hoisted(() => ({
   activeGroupIdByWorktree: {},
-  clearDeliveredDiffComments: vi.fn()
+  clearDeliveredDiffComments: vi.fn(),
+  markDiffCommentsSent: vi.fn()
 }))
 
 vi.mock('@/store', () => ({

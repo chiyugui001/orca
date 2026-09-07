@@ -26,6 +26,7 @@ const storeState = {
   deleteDiffComment: vi.fn(),
   updateDiffComment: vi.fn(),
   clearDeliveredDiffComments: vi.fn(),
+  markDiffCommentsSent: vi.fn(),
   keybindings: {},
   worktreesByRepo: {},
   repos: [],

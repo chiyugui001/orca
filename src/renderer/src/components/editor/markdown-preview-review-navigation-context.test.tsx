@@ -61,4 +61,25 @@ describe('MarkdownReviewNavigationProvider', () => {
     expect(goToPrevious).toHaveBeenCalledOnce()
     expect(goToNext).toHaveBeenCalledOnce()
   })
+
+  it('exposes a registered rich Markdown review-rail toggle', () => {
+    mount()
+    const toggleReviewRail = vi.fn()
+
+    act(() =>
+      navigation?.registerMarkdownReviewNavigation({
+        canGoToPrevious: false,
+        canGoToNext: true,
+        goToPrevious: vi.fn(),
+        goToNext: vi.fn(),
+        reviewRailOpen: true,
+        toggleReviewRail,
+        source: null
+      })
+    )
+
+    expect(navigation?.reviewRailOpen).toBe(true)
+    navigation?.toggleReviewRail?.()
+    expect(toggleReviewRail).toHaveBeenCalledOnce()
+  })
 })

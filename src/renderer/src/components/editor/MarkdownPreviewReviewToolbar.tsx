@@ -23,12 +23,14 @@ export function MarkdownPreviewReviewToolbar({
   content: string
   notes: readonly MarkdownReviewNote[]
 }): React.JSX.Element {
-  const clearDeliveredDiffComments = useAppStore((s) => s.clearDeliveredDiffComments)
+  const markDiffCommentsSent = useAppStore((s) => s.markDiffCommentsSent)
   const {
     canGoToPrevious,
     canGoToNext,
     goToPreviousReviewNote,
-    goToNextReviewNote
+    goToNextReviewNote,
+    reviewRailOpen,
+    toggleReviewRail
   } = useMarkdownReviewNavigation()
   const [reviewNotesCopied, setReviewNotesCopied] = useState(false)
   const copiedResetTimerRef = useRef<number | null>(null)
@@ -85,12 +87,10 @@ export function MarkdownPreviewReviewToolbar({
       <button
         type="button"
         className="h-6 shrink-0 gap-1 rounded-full border border-border/70 bg-muted/40 px-2 text-[11px] font-medium leading-none text-foreground/80 hover:bg-accent hover:text-foreground disabled:opacity-50"
-        onClick={goToNextReviewNote}
-        disabled={!canGoToNext}
-        title={translate(
-          'auto.components.editor.MarkdownPreview.322afab6ff',
-          'Review notes'
-        )}
+        onClick={toggleReviewRail ?? goToNextReviewNote}
+        disabled={toggleReviewRail === undefined && !canGoToNext}
+        aria-pressed={toggleReviewRail ? reviewRailOpen : undefined}
+        title={translate('auto.components.editor.MarkdownPreview.322afab6ff', 'Review notes')}
         aria-label={translate(
           'auto.components.editor.MarkdownPreview.322afab6ff',
           'Review notes'
@@ -157,7 +157,10 @@ export function MarkdownPreviewReviewToolbar({
         scopes={unsentMarkdownReviewScope}
         triggerClassName="p-1 rounded hover:bg-accent text-muted-foreground hover:text-foreground transition-colors flex-shrink-0 disabled:opacity-50 disabled:hover:bg-transparent disabled:hover:text-muted-foreground"
         onDelivered={(deliveredNotes) =>
-          void clearDeliveredDiffComments(worktreeId, deliveredNotes)
+          void markDiffCommentsSent(
+            worktreeId,
+            deliveredNotes.map((note) => note.id)
+          )
         }
       />
     </>

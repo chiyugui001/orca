@@ -154,7 +154,7 @@ describe('EditorPanelHeader', () => {
     ).not.toContain('data-artifact-publish')
   })
 
-  it('places Markdown review controls beside the table of contents toggle in preview mode', () => {
+  it('places Markdown review controls beside the table of contents toggle in Markdown modes', () => {
     const previewFile = {
       ...activeFile,
       mode: 'markdown-preview' as const,
@@ -170,5 +170,13 @@ describe('EditorPanelHeader', () => {
 
     expect(html).toContain('aria-label="Table of Contents"')
     expect(html).toContain('data-markdown-review-toolbar="true"')
+
+    expect(
+      renderHeader({
+        activeFile: { ...previewFile, mode: 'edit' },
+        isDiffSurface: false,
+        isMarkdown: true
+      })
+    ).toContain('data-markdown-review-toolbar="true"')
   })
 })

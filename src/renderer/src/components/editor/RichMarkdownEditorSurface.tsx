@@ -10,12 +10,10 @@ import { RichMarkdownLinkBubble, type LinkBubbleState } from './RichMarkdownLink
 import { MarkdownTableOfContentsPanel } from './MarkdownTableOfContentsPanel'
 import { RichMarkdownAnnotationOverlay } from './RichMarkdownAnnotationOverlay'
 import { RichMarkdownReviewNoteLayer } from './RichMarkdownReviewNoteLayer'
-import { RichMarkdownReviewRailActions } from './RichMarkdownReviewRailActions'
 import { RichMarkdownTableControls } from './RichMarkdownTableControls'
 import type { DocLinkMenuRow, DocLinkMenuState } from './rich-markdown-commands'
 import type { SlashCommand, SlashMenuState } from './rich-markdown-slash-commands'
 import type { MarkdownTocItem } from './markdown-table-of-contents'
-import type { NotesSendMenuScope } from './NotesSendMenu'
 import type { MarkdownReviewNote } from '@/lib/markdown-review-notes'
 import type { RichMarkdownAnnotationTarget } from './rich-markdown-review-annotations'
 import type { RichMarkdownReviewNotePosition } from './rich-markdown-review-note-layout'
@@ -53,10 +51,6 @@ type RichMarkdownEditorSurfaceProps = {
   filePath: string
   // Repo-relative path for GitLab MR inline comments (the popover anchors on it).
   annotationFilePath?: string
-  markdownCommentsCount: number
-  reviewRailOpen: boolean
-  reviewNotesCopied: boolean
-  unsentMarkdownReviewScope: NotesSendMenuScope<MarkdownReviewNote>[]
   linkBubble: LinkBubbleState | null
   isEditingLink: boolean
   slashMenu: SlashMenuState | null
@@ -113,9 +107,7 @@ type RichMarkdownEditorSurfaceProps = {
   onOpenAnnotationPopover: () => void
   onCancelAnnotationPopover: () => void
   onSubmitAnnotation: (body: string) => Promise<void>
-  onCopyReviewNotes: () => void
   onCopyReviewNote: (note: MarkdownReviewNote) => void
-  onToggleReviewRail: () => void
   onReviewNotesDelivered: (notes: readonly MarkdownReviewNote[]) => void
   onReviewNoteSourceClick: (comment: DiffComment) => void
   onDeleteReviewComment: (commentId: string) => void
@@ -142,10 +134,6 @@ export function RichMarkdownEditorSurface({
   worktreeId,
   filePath,
   annotationFilePath,
-  markdownCommentsCount,
-  reviewRailOpen,
-  reviewNotesCopied,
-  unsentMarkdownReviewScope,
   linkBubble,
   isEditingLink,
   slashMenu,
@@ -173,9 +161,7 @@ export function RichMarkdownEditorSurface({
   onOpenAnnotationPopover,
   onCancelAnnotationPopover,
   onSubmitAnnotation,
-  onCopyReviewNotes,
   onCopyReviewNote,
-  onToggleReviewRail,
   onReviewNotesDelivered,
   onReviewNoteSourceClick,
   onDeleteReviewComment,
@@ -317,19 +303,6 @@ export function RichMarkdownEditorSurface({
           onCancelPopover={onCancelAnnotationPopover}
           onSubmit={onSubmitAnnotation}
         />
-        {markdownCommentsCount > 0 ? (
-          <RichMarkdownReviewRailActions
-            worktreeId={worktreeId}
-            filePath={filePath}
-            noteCount={markdownCommentsCount}
-            railOpen={reviewRailOpen}
-            notesCopied={reviewNotesCopied}
-            unsentScope={unsentMarkdownReviewScope}
-            onToggleRail={onToggleReviewRail}
-            onCopyNotes={onCopyReviewNotes}
-            onDelivered={onReviewNotesDelivered}
-          />
-        ) : null}
       </div>
     </div>
   )

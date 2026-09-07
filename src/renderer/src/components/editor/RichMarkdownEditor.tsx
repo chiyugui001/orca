@@ -63,7 +63,7 @@ export default function RichMarkdownEditor({
   const addDiffComment = useAppStore((s) => s.addDiffComment)
   const deleteDiffComment = useAppStore((s) => s.deleteDiffComment)
   const updateDiffComment = useAppStore((s) => s.updateDiffComment)
-  const clearDeliveredDiffComments = useAppStore((s) => s.clearDeliveredDiffComments)
+  const markDiffCommentsSent = useAppStore((s) => s.markDiffCommentsSent)
   const allDiffComments = useAppStore((s): DiffComment[] | undefined =>
     selectWorktreeDiffComments(s, worktreeId)
   )
@@ -366,10 +366,6 @@ export default function RichMarkdownEditor({
       worktreeId={worktreeId}
       filePath={filePath}
       annotationFilePath={markdownAnnotationFilePath}
-      markdownCommentsCount={review.markdownComments.length}
-      reviewRailOpen={review.reviewRailOpen}
-      reviewNotesCopied={review.reviewNotesCopied}
-      unsentMarkdownReviewScope={review.unsentMarkdownReviewScope}
       linkBubble={linkBubble}
       isEditingLink={isEditingLink}
       slashMenu={menu.slashMenu}
@@ -412,10 +408,13 @@ export default function RichMarkdownEditor({
       onOpenAnnotationPopover={review.openAnnotationPopover}
       onCancelAnnotationPopover={() => review.closeAnnotationPopover()}
       onSubmitAnnotation={review.submitAnnotation}
-      onCopyReviewNotes={() => void review.handleCopyMarkdownReviewNotes()}
       onCopyReviewNote={(note) => void review.handleCopyMarkdownReviewNote(note)}
-      onToggleReviewRail={() => review.setReviewRailOpen((open) => !open)}
-      onReviewNotesDelivered={(notes) => void clearDeliveredDiffComments(worktreeId, notes)}
+      onReviewNotesDelivered={(notes) =>
+        void markDiffCommentsSent(
+          worktreeId,
+          notes.map((note) => note.id)
+        )
+      }
       onReviewNoteSourceClick={review.scrollRichMarkdownReviewNoteSourceIntoView}
       onDeleteReviewComment={(commentId) => void deleteDiffComment(worktreeId, commentId)}
       onSubmitReviewCommentEdit={(commentId, body) =>

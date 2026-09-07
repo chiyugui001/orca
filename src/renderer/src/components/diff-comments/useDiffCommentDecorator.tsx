@@ -49,7 +49,7 @@ export function useDiffCommentDecorator({
   pendingScrollCommentId,
   onPendingScrollConsumed
 }: DecoratorArgs): void {
-  const clearDeliveredDiffComments = useAppStore((s) => s.clearDeliveredDiffComments)
+  const markDiffCommentsSent = useAppStore((s) => s.markDiffCommentsSent)
   const activeGroupId = useAppStore((s) =>
     worktreeId ? (s.activeGroupIdByWorktree[worktreeId] ?? worktreeId) : worktreeId
   )
@@ -181,7 +181,7 @@ export function useDiffCommentDecorator({
         resizeZone,
         onDeleteCommentRef,
         onUpdateCommentRef,
-        clearDeliveredDiffComments
+        markDiffCommentsSent
       })
     }
 
@@ -275,7 +275,7 @@ export function useDiffCommentDecorator({
   }, [
     activeGroupId,
     cancelScrollToZoneFrame,
-    clearDeliveredDiffComments,
+    markDiffCommentsSent,
     editor,
     filePath,
     formatCommentPrompt,
