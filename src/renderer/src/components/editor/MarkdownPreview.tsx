@@ -57,8 +57,6 @@ export default function MarkdownPreview({
   const annotationRenderers = useMarkdownPreviewAnnotationRenderers({
     foundation,
     reviewActions,
-    filePath,
-    content,
     markdownAnnotationsEnabled
   })
   const components = useMarkdownPreviewComponents({
@@ -75,6 +73,7 @@ export default function MarkdownPreview({
       foundation={foundation}
       viewport={viewport}
       components={components}
+      reviewActions={reviewActions}
       showTableOfContents={showTableOfContents}
       onCloseTableOfContents={onCloseTableOfContents}
     />

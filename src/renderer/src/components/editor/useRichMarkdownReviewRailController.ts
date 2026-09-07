@@ -33,7 +33,9 @@ export function useRichMarkdownReviewRailController({
   markdownSourceLineOffsetRef,
   scrollContainerRef
 }: UseRichMarkdownReviewRailControllerOptions) {
-  const [reviewRailOpen, setReviewRailOpen] = useState(false)
+  // Why: preview always renders saved notes; open the rich-mode rail too so the
+  // same notes remain visible when the views are shown side by side.
+  const [reviewRailOpen, setReviewRailOpen] = useState(() => markdownComments.length > 0)
   const [activeReviewCommentId, setActiveReviewCommentId] = useState<string | null>(null)
   const [attentionReviewCommentId, setAttentionReviewCommentId] = useState<string | null>(null)
   const [notePositions, setNotePositions] = useState<RichMarkdownReviewNotePosition[]>([])
@@ -190,6 +192,12 @@ export function useRichMarkdownReviewRailController({
   )
 
   useEffect(() => requestSyncNotePositions(), [content, markdownComments, requestSyncNotePositions])
+
+  useEffect(() => {
+    if (markdownComments.length > 0) {
+      setReviewRailOpen(true)
+    }
+  }, [markdownComments.length])
 
   useEffect(() => {
     if (!reviewRailVisible) {

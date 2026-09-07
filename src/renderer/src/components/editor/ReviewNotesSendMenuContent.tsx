@@ -21,6 +21,13 @@ import {
   type NotesSendAgentTarget
 } from '@/lib/notes-send-agent-targets'
 import {
+  deriveSleepingNotesSendTargets,
+  type SleepingNotesSendTarget
+} from '@/lib/sleeping-notes-send-targets'
+import { wakeSleepingAgentSessionAndSendNotes } from '@/lib/send-notes-to-sleeping-agent-session'
+import { createWorkspaceTerminalHostAuthoritySelector } from '@/lib/workspace-terminal-host-authority'
+import { ReviewNotesSleepingSessionMenuItem } from './ReviewNotesSleepingSessionMenuItem'
+import {
   agentKindForAgentType,
   formatAgentTypeLabel,
   agentTypeToIconAgent
@@ -65,6 +72,12 @@ export function ReviewNotesSendMenuContent({
   const terminalLayoutsByTabId = useAppStore((s) => s.terminalLayoutsByTabId)
   const ptyIdsByTabId = useAppStore(useShallow((s) => selectLivePtyIdsForWorktree(s, worktreeId)))
   const runtimePaneTitlesByTabId = useAppStore((s) => s.runtimePaneTitlesByTabId)
+  const sleepingAgentSessionsByPaneKey = useAppStore((s) => s.sleepingAgentSessionsByPaneKey)
+  const hostAuthoritySelector = useMemo(
+    () => createWorkspaceTerminalHostAuthoritySelector(worktreeId),
+    [worktreeId]
+  )
+  const hostAuthority = useAppStore(hostAuthoritySelector)
   const agentStatusEpoch = useAppStore((s) => s.agentStatusEpoch)
   const agentRows = useWorktreeAgentRows(worktreeId)
   const now = useNow(30_000)
@@ -94,6 +107,28 @@ export function ReviewNotesSendMenuContent({
   const orderedSendTargets = useMemo(
     () => orderSendTargetsByWorktreeAgentRows(sendTargets, agentRows),
     [agentRows, sendTargets]
+  )
+  const sleepingSendTargets = useMemo(
+    () =>
+      deriveSleepingNotesSendTargets(
+        {
+          activeWorktreeId: worktreeId,
+          sleepingAgentSessionsByPaneKey,
+          tabsByWorktree,
+          terminalLayoutsByTabId,
+          ptyIdsByTabId
+        },
+        worktreeId,
+        hostAuthority
+      ),
+    [
+      hostAuthority,
+      ptyIdsByTabId,
+      sleepingAgentSessionsByPaneKey,
+      tabsByWorktree,
+      terminalLayoutsByTabId,
+      worktreeId
+    ]
   )
 
   const runNotesSend = useCallback(
@@ -178,6 +213,26 @@ export function ReviewNotesSendMenuContent({
     },
     [hasPrompt, runNotesSend, worktreeId, prompt, onPromptDelivered, launchSource]
   )
+  const sendToSleepingAgentTarget = useCallback(
+    (target: SleepingNotesSendTarget) => {
+      if (!hasPrompt || target.status !== 'eligible') {
+        return
+      }
+      runNotesSend(
+        () => wakeSleepingAgentSessionAndSendNotes({ record: target.record, prompt }),
+        () => {
+          onPromptDelivered?.()
+          track('agent_prompt_sent', {
+            agent_kind: agentKindForAgentType(target.agentType),
+            launch_source: launchSource,
+            request_kind: 'followup'
+          })
+        },
+        { explicitTarget: true }
+      )
+    },
+    [hasPrompt, launchSource, onPromptDelivered, prompt, runNotesSend]
+  )
 
   return (
     <>
@@ -194,6 +249,25 @@ export function ReviewNotesSendMenuContent({
           onSend={sendToAgentTarget}
         />
       ))}
+      {sleepingSendTargets.length > 0 ? (
+        <>
+          <DropdownMenuSeparator />
+          <DropdownMenuLabel>
+            {translate(
+              'auto.components.editor.ReviewNotesSendMenuContent.sleeping',
+              'Sleeping sessions'
+            )}
+          </DropdownMenuLabel>
+          {sleepingSendTargets.map((target) => (
+            <ReviewNotesSleepingSessionMenuItem
+              key={target.paneKey}
+              target={target}
+              disabled={!hasPrompt || target.status !== 'eligible'}
+              onSend={sendToSleepingAgentTarget}
+            />
+          ))}
+        </>
+      ) : null}
       <DropdownMenuSeparator />
       <DropdownMenuLabel>
         {translate('auto.components.editor.ReviewNotesSendMenuContent.a49800405b', 'New agent')}

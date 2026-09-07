@@ -328,21 +328,30 @@
 .markdown-annotation-block,
 .markdown-annotation-list-block {
   position: relative;
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(220px, min(28cqw, 300px));
-  column-gap: 32px;
-  align-items: start;
+  min-width: 0;
 }
 
-.markdown-annotation-block > :not(.markdown-annotation-controls),
-.markdown-annotation-list-content {
-  grid-column: 1;
-  min-width: 0;
+.markdown-annotation-block.has-review-notes::before,
+.markdown-annotation-list-block.has-review-notes::before {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: -8px;
+  width: 2px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--ring) 72%, transparent);
+  content: '';
+}
+
+.markdown-annotation-block.has-review-notes,
+.markdown-annotation-list-block.has-review-notes {
+  cursor: pointer;
 }
 
 .markdown-annotation-block.has-review-notes > :not(.markdown-annotation-controls),
 .markdown-annotation-list-block.has-review-notes > .markdown-annotation-list-content {
-  cursor: pointer;
+  border-radius: 4px;
+  background: color-mix(in srgb, var(--ring) 7%, transparent);
 }
 
 .markdown-annotation-block:hover > .markdown-annotation-controls > .markdown-annotation-add,
@@ -355,19 +364,13 @@
 }
 
 .markdown-annotation-controls {
-  /* Why: note cards must share the document scroll with their source block;
-     laying the rail into each block avoids a separate right-side viewport. */
-  position: relative;
-  grid-column: 2;
-  grid-row: 1;
-  min-width: 0;
-  margin-top: 0;
+  position: absolute;
+  top: 0;
+  right: 0;
+  z-index: 4;
 }
 
 .markdown-annotation-add {
-  position: absolute;
-  top: 2px;
-  left: -26px;
   display: inline-flex;
   width: 20px;
   height: 20px;
@@ -394,24 +397,6 @@
   outline: 2px solid var(--ring);
   outline-offset: 1px;
   opacity: 1;
-}
-
-.markdown-annotation-composer,
-.markdown-annotation-card {
-  max-width: none;
-  margin-top: 0;
-  scroll-margin: 12px;
-}
-
-.markdown-annotation-note-stack {
-  display: flex;
-  min-width: 0;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.markdown-annotation-composer + .markdown-annotation-note-stack {
-  margin-top: 8px;
 }
 
 .markdown-annotation-card.is-active > .orca-diff-comment-card {
@@ -444,7 +429,14 @@
   }
 }
 
-.markdown-annotation-composer {
+.markdown-preview-annotation-composer-layer {
+  position: absolute;
+  right: 32px;
+  width: min(300px, 80vw);
+  z-index: 5;
+}
+
+.markdown-preview-annotation-composer-layer > .markdown-annotation-composer {
   border: 1px solid color-mix(in srgb, var(--foreground) 18%, transparent);
   border-radius: 6px;
   background: var(--editor-surface);
@@ -452,23 +444,37 @@
   box-shadow: 0 1px 2px color-mix(in srgb, var(--foreground) 12%, transparent);
 }
 
+.markdown-preview.has-markdown-preview-review-notes > .markdown-body {
+  padding-right: calc(min(28cqw, 300px) + 32px);
+}
+
+.markdown-preview-review-note-layer {
+  position: absolute;
+  top: 0;
+  right: 32px;
+  width: min(28cqw, 300px);
+  pointer-events: none;
+}
+
+.markdown-preview-review-note-card {
+  position: absolute;
+  right: 0;
+  width: 100%;
+  pointer-events: auto;
+  scroll-margin: 12px;
+}
+
 @container (max-width: 760px) {
-  .markdown-annotation-block,
-  .markdown-annotation-list-block {
-    display: block;
-  }
-
-  .markdown-annotation-controls {
-    margin-top: 6px;
-  }
-
   .markdown-annotation-add {
-    position: static;
+    opacity: 1;
   }
 
-  .markdown-annotation-composer,
-  .markdown-annotation-note-stack {
-    margin-top: 6px;
+  .markdown-preview.has-markdown-preview-review-notes > .markdown-body {
+    padding-right: 0;
+  }
+
+  .markdown-preview-review-note-layer {
+    display: none;
   }
 }
 

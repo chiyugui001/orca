@@ -199,6 +199,9 @@ export function resumeSleepingAgentSessionsForWorktree(
 
   let launched = 0
   for (const record of worktreeRecords) {
+    if (options?.onlyPaneKey && record.paneKey !== options.onlyPaneKey) {
+      continue
+    }
     const currentState = useAppStore.getState()
     if (currentState.sleepingAgentSessionsByPaneKey[record.paneKey] !== record) {
       continue

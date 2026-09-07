@@ -9,7 +9,6 @@ import {
   resolveMarkdownDocLink
 } from './markdown-doc-links'
 import {
-  getMarkdownPreviewAnnotationQuote,
   getMarkdownPreviewBlockRange,
   hasMarkdownPreviewNestedBlock
 } from './markdown-preview-block-model'
@@ -60,7 +59,7 @@ export function useMarkdownPreviewComponents({
     setPendingEditorReveal
   } = foundation
   const { scrollToAnchor } = viewport
-  const { getMarkdownCommentsForRange, handleAnnotatedMarkdownBlockClick } = reviewActions
+  const { handleAnnotatedMarkdownBlockClick } = reviewActions
   const { renderAnnotationControls, wrapAnnotatedBlock } = annotationRenderers
 
   return useMemo(() => {
@@ -199,18 +198,11 @@ export function useMarkdownPreviewComponents({
           return <li {...props}>{children}</li>
         }
         const blockKey = `li:${range.startLine}-${range.endLine}`
-        const hasReviewNotes = getMarkdownCommentsForRange(range).length > 0
-        const controls = renderAnnotationControls(
-          range,
-          blockKey,
-          getMarkdownPreviewAnnotationQuote(children)
-        )
+        const controls = renderAnnotationControls(blockKey)
         return (
           <li {...props}>
             <div
-              className={`markdown-annotation-list-block ${
-                hasReviewNotes ? 'has-review-notes' : ''
-              }`.trim()}
+              className="markdown-annotation-list-block"
               data-source-line={range.startLine}
               data-source-end-line={range.endLine}
               data-annotation-block-key={controls ? blockKey : undefined}
@@ -278,7 +270,6 @@ export function useMarkdownPreviewComponents({
     isDark,
     isMac,
     imageRuntimeContext,
-    getMarkdownCommentsForRange,
     handleAnnotatedMarkdownBlockClick,
     markdownDocumentIndex,
     onOpenDocument,

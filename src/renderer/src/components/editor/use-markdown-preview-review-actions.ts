@@ -1,4 +1,4 @@
-import { useCallback, useEffect } from 'react'
+import { useCallback, useEffect, useRef } from 'react'
 import { copyMarkdownReviewNotesForAgent } from '@/lib/markdown-review-note-copy'
 import type { MarkdownReviewNote } from '@/lib/markdown-review-notes'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
@@ -42,6 +42,10 @@ export function useMarkdownPreviewReviewActions({
     canShowReviewTools
   } = foundation
   const { clearReviewNotesCopiedResetTimer, clearCopiedReviewNoteResetTimer } = viewport
+  const markdownCommentsRef = useRef(markdownComments)
+  const activeReviewCommentIdRef = useRef(activeReviewCommentId)
+  markdownCommentsRef.current = markdownComments
+  activeReviewCommentIdRef.current = activeReviewCommentId
   const {
     registerMarkdownReviewNavigation,
     clearMarkdownReviewNavigation
@@ -190,16 +194,18 @@ export function useMarkdownPreviewReviewActions({
       if (!isMarkdownAnnotationNavigationClick(event.target)) {
         return
       }
-      const commentsForBlock = getMarkdownCommentsForRange(range)
+      const commentsForBlock = markdownCommentsRef.current.filter(
+        (comment) => range.startLine <= comment.lineNumber && comment.lineNumber <= range.endLine
+      )
       const comment =
-        commentsForBlock.find((candidate) => candidate.id !== activeReviewCommentId) ??
+        commentsForBlock.find((candidate) => candidate.id !== activeReviewCommentIdRef.current) ??
         commentsForBlock[0]
       if (!comment) {
         return
       }
       scrollRenderedMarkdownReviewNoteIntoView(comment)
     },
-    [activeReviewCommentId, getMarkdownCommentsForRange, scrollRenderedMarkdownReviewNoteIntoView]
+    [scrollRenderedMarkdownReviewNoteIntoView]
   )
 
   const activeReviewNoteIndex = markdownReviewNotes.findIndex(

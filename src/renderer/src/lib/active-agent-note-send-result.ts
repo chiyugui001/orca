@@ -2,6 +2,7 @@ export type ActiveAgentNotesSendStatus =
   | 'sent'
   | 'empty'
   | 'no-active-terminal'
+  | 'wake-unavailable'
   | 'no-agent'
   | 'permission'
   | 'status-unavailable'
@@ -25,6 +26,8 @@ export function activeAgentNotesSendFailureMessage(
       return options.explicitTarget
         ? 'The selected terminal is no longer available.'
         : 'Open the agent terminal in this worktree, then send the notes again.'
+    case 'wake-unavailable':
+      return 'The selected sleeping session could not be resumed safely.'
     case 'no-agent':
       return `The ${target} terminal is not a recognized agent session.`
     case 'permission':

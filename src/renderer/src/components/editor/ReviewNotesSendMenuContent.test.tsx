@@ -25,6 +25,7 @@ const hookRuntime = vi.hoisted(() => ({
 const harness = vi.hoisted(() => ({
   storeState: {} as Record<string, unknown>,
   sendNotesToActiveAgentSession: vi.fn(),
+  wakeSleepingAgentSessionAndSendNotes: vi.fn(),
   track: vi.fn(),
   toastMessage: vi.fn(),
   worktreeAgentRows: [] as DashboardAgentRowData[],
@@ -98,6 +99,14 @@ vi.mock('@/lib/active-agent-note-send', () => ({
 
 vi.mock('@/lib/notes-send-agent-targets', () => ({
   deriveNotesSendAgentTargets: () => harness.noteTargets
+}))
+
+vi.mock('@/lib/send-notes-to-sleeping-agent-session', () => ({
+  wakeSleepingAgentSessionAndSendNotes: harness.wakeSleepingAgentSessionAndSendNotes
+}))
+
+vi.mock('@/lib/workspace-terminal-host-authority', () => ({
+  createWorkspaceTerminalHostAuthoritySelector: () => () => 'none'
 }))
 
 vi.mock('@/lib/telemetry', () => ({
@@ -247,6 +256,7 @@ function setStore(overrides: Record<string, unknown> = {}): void {
     terminalLayoutsByTabId: {},
     ptyIdsByTabId: {},
     runtimePaneTitlesByTabId: {},
+    sleepingAgentSessionsByPaneKey: {},
     ...overrides
   }
 }
@@ -344,6 +354,8 @@ describe('ReviewNotesSendMenuContent', () => {
     hookRuntime.cleanups = []
     harness.sendNotesToActiveAgentSession.mockReset()
     harness.sendNotesToActiveAgentSession.mockResolvedValue({ status: 'sent' })
+    harness.wakeSleepingAgentSessionAndSendNotes.mockReset()
+    harness.wakeSleepingAgentSessionAndSendNotes.mockResolvedValue({ status: 'sent' })
     harness.track.mockReset()
     harness.toastMessage.mockReset()
     harness.worktreeAgentRows = []

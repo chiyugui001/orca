@@ -18,6 +18,9 @@ import { translate } from '@/i18n/i18n'
 
 export type ResumeSleepingAgentSessionsOptions = {
   suppressNavigation?: boolean
+  /** Limits a user-initiated wake to one stored pane while retaining every
+   * provider-session ownership and host-authority fence in the normal sweep. */
+  onlyPaneKey?: string
   /** Provider-session claim keys already woken in place by mounted panes
    *  (WAKE_HIBERNATED_AGENTS_WORKTREE_EVENT). Their sleeping records are
    *  cleared only after the in-place spawn succeeds, so the generic resume
