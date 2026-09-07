@@ -75,12 +75,14 @@ export function deriveNotesSendAgentTargets(
       const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
       const customTitle = resolveNotesTargetCustomTitle(target.tab)
       const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
-      // A completed turn can leave its TUI idle for hours. The runtime performs
-      // an agent-status check immediately before the guarded write.
+      // Stale hook rows and permission-flagged rows both keep a live PTY whose
+      // real sendability only the runtime knows; the guarded write re-checks
+      // agent status immediately before accepting bytes, so surface them as
+      // clickable and let the runtime refuse with a toast when truly blocked.
       const needsRuntimeProbe =
-        target.entry.state === 'done' &&
         target.ptyId !== null &&
-        target.disabledReason === 'Agent status is stale'
+        (target.disabledReason === 'Agent status is stale' ||
+          target.disabledReason === 'Agent needs permission')
       return {
         paneKey: target.paneKey,
         tabId: target.tabId,
@@ -165,8 +167,10 @@ function deriveTitleHintAgentTarget(
     // before listing either launched or manually started panes.
     return null
   }
-  const disabledReason =
-    titleEvidence.status === 'permission' ? 'Agent needs permission' : undefined
+  // Why: a permission title is point-in-time evidence; the guarded write
+  // re-checks agent status at the runtime before accepting bytes, so keep the
+  // row clickable and let a truly blocked agent refuse with a toast.
+  const needsRuntimeProbe = titleEvidence.status === 'permission'
 
   const agentType = tab.launchAgent ?? resolveTerminalTitleAgentType(titleEvidence.title)
   const customTitle = resolveNotesTargetCustomTitle(tab)
@@ -179,8 +183,8 @@ function deriveTitleHintAgentTarget(
     ...(customTitle ? { customTitle } : {}),
     ...(sessionTitle ? { sessionTitle } : {}),
     tabTitle: tab.title,
-    status: disabledReason ? 'disabled' : 'eligible',
-    ...(disabledReason ? { disabledReason } : {})
+    status: 'eligible',
+    ...(needsRuntimeProbe ? { runtimeVerificationRequired: true } : {})
   }
 }
 
@@ -203,10 +207,7 @@ function mergeLaunchAgentTitleTarget(
   const samePaneIndex = targets.findIndex((existing) => existing.paneKey === target.paneKey)
   if (samePaneIndex !== -1) {
     const existing = targets[samePaneIndex]
-    if (
-      (existing.status === 'eligible' && !existing.runtimeVerificationRequired) ||
-      existing.disabledReason === 'Agent needs permission'
-    ) {
+    if (existing.status === 'eligible' && !existing.runtimeVerificationRequired) {
       return
     }
 
@@ -224,14 +225,14 @@ function mergeLaunchAgentTitleTarget(
     return
   }
 
-  // Why: dedupe by tab for fresh/permission status rows. Their active leaf may
+  // Why: dedupe by tab for fresh status rows. Their active leaf may
   // be a split shell pane, which would list a second bogus row for the same tab.
   if (
     targets.some(
       (existing) =>
         existing.tabId === target.tabId &&
-        ((existing.status === 'eligible' && !existing.runtimeVerificationRequired) ||
-          existing.disabledReason === 'Agent needs permission')
+        existing.status === 'eligible' &&
+        !existing.runtimeVerificationRequired
     )
   ) {
     return

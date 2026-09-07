@@ -214,7 +214,7 @@ describe('notes send agent targets', () => {
     expect(targets[0]).not.toHaveProperty('sessionTitle')
   })
 
-  it('keeps permission status-backed targets visible but disabled', () => {
+  it('keeps permission status-backed targets selectable for runtime verification', () => {
     const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
     const targets = deriveNotesSendAgentTargets(
       state({
@@ -229,13 +229,13 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey,
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
 
-  it('keeps status-backed working targets disabled when a live pane title needs permission', () => {
+  it('keeps working targets with a permission pane title selectable for runtime verification', () => {
     const paneKey = makePaneKey(STATUS_TAB_ID, LEAF_A)
     const targets = deriveNotesSendAgentTargets(
       state({
@@ -251,8 +251,8 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey,
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
@@ -323,7 +323,7 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([])
   })
 
-  it('disables a manual agent tab with a permission pane title', () => {
+  it('keeps a manual agent tab with a permission pane title selectable for runtime verification', () => {
     const targets = deriveNotesSendAgentTargets(
       state({
         tabsByWorktree: {
@@ -340,8 +340,8 @@ describe('notes send agent targets', () => {
       expect.objectContaining({
         paneKey: makePaneKey(MANUAL_TAB_ID, LEAF_B),
         agentType: 'codex',
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
@@ -377,7 +377,7 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([])
   })
 
-  it('disables a launch-agent tab with a permission pane title', () => {
+  it('keeps a launch-agent tab with a permission pane title selectable for runtime verification', () => {
     const targets = deriveNotesSendAgentTargets(
       state({
         tabsByWorktree: {
@@ -393,13 +393,13 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey: makePaneKey(LAUNCH_TAB_ID, LEAF_B),
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
 
-  it('disables a launch-agent tab with a permission tab title when no pane title is set', () => {
+  it('keeps a launch-agent tab with a permission tab title selectable for runtime verification', () => {
     const targets = deriveNotesSendAgentTargets(
       state({
         tabsByWorktree: {
@@ -416,8 +416,8 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey: makePaneKey(LAUNCH_TAB_ID, LEAF_B),
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
@@ -605,7 +605,7 @@ describe('notes send agent targets', () => {
     ])
   })
 
-  it('keeps a stale status-backed launch-agent pane disabled when the live title needs permission', () => {
+  it('keeps a stale status-backed launch-agent pane with a permission title selectable for runtime verification', () => {
     const paneKey = makePaneKey(LAUNCH_TAB_ID, LEAF_B)
     const targets = deriveNotesSendAgentTargets(
       state({
@@ -625,8 +625,8 @@ describe('notes send agent targets', () => {
     expect(targets).toEqual([
       expect.objectContaining({
         paneKey,
-        status: 'disabled',
-        disabledReason: 'Agent needs permission'
+        status: 'eligible',
+        runtimeVerificationRequired: true
       })
     ])
   })
