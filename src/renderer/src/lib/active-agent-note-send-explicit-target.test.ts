@@ -98,7 +98,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'sent' })
 
@@ -107,6 +108,7 @@ describe('active agent note send', () => {
       'terminal.agentStatus',
       'terminal.send',
       'terminal.agentStatus',
+      'terminal.send',
       'terminal.send'
     ])
     expect(testState.callRuntimeRpc).toHaveBeenCalledWith(
@@ -170,7 +172,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'status-unavailable' })
 
@@ -225,7 +228,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes \x1b[201~ tail',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'sent' })
 
@@ -273,7 +277,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'permission' })
 
@@ -339,7 +344,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'sent' })
 
@@ -348,6 +354,7 @@ describe('active agent note send', () => {
       'terminal.agentStatus',
       'terminal.send',
       'terminal.agentStatus',
+      'terminal.send',
       'terminal.send'
     ])
 
@@ -357,7 +364,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'no-agent' })
     expect(methods).toEqual(['terminal.list', 'terminal.agentStatus', 'terminal.send'])
@@ -399,7 +407,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'not-writable' })
 
@@ -452,7 +461,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'permission' })
 
@@ -506,7 +516,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'partial-submit-failed' })
 
@@ -560,7 +571,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'partial-submit-failed' })
   })
@@ -618,7 +630,8 @@ describe('active agent note send', () => {
       sendNotesToActiveAgentSession({
         worktreeId: 'wt-1',
         prompt: 'notes',
-        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID }
+        noteTarget: { tabId: 'tab-9', leafId: OTHER_LEAF_ID },
+        submitRetryDelayMs: 0
       })
     ).resolves.toEqual({ status: 'partial-submit-failed' })
   })

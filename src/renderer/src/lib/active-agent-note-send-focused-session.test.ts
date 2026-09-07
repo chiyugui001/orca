@@ -98,7 +98,11 @@ describe('active agent note send', () => {
     })
 
     await expect(
-      sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'File: src/app.ts' })
+      sendNotesToActiveAgentSession({
+        worktreeId: 'wt-1',
+        prompt: 'File: src/app.ts',
+        submitRetryDelayMs: 0
+      })
     ).resolves.toEqual({ status: 'sent' })
 
     expect(testState.callRuntimeRpc).toHaveBeenCalledWith(
@@ -129,6 +133,131 @@ describe('active agent note send', () => {
       },
       { timeoutMs: 15000 }
     )
+  })
+
+  it('retries the submit Enter once in case the TUI swallowed the first', async () => {
+    const enterSends: unknown[] = []
+    testState.callRuntimeRpc.mockImplementation(async (_target, method, params) => {
+      if (method === 'terminal.list') {
+        return {
+          terminals: [
+            {
+              handle: 'term-1',
+              worktreeId: 'wt-1',
+              worktreePath: '/repo',
+              branch: 'main',
+              tabId: 'tab-1',
+              leafId: LEAF_ID,
+              title: 'Codex',
+              connected: true,
+              writable: true,
+              lastOutputAt: 1,
+              preview: ''
+            }
+          ],
+          totalCount: 1,
+          truncated: false
+        }
+      }
+      if (method === 'terminal.agentStatus') {
+        return { agentStatus: { handle: 'term-1', isRunningAgent: true, status: 'idle' } }
+      }
+      if (method === 'terminal.wait') {
+        return {
+          wait: {
+            handle: 'term-1',
+            condition: 'tui-idle',
+            satisfied: true,
+            status: 'running',
+            exitCode: null
+          }
+        }
+      }
+      if (method === 'terminal.send') {
+        if (params.enter === true) {
+          enterSends.push(params)
+        }
+        return { send: { handle: 'term-1', accepted: true, bytesWritten: 1 } }
+      }
+      throw new Error(`unexpected method ${method}`)
+    })
+
+    await expect(
+      sendNotesToActiveAgentSession({
+        worktreeId: 'wt-1',
+        prompt: 'notes',
+        submitRetryDelayMs: 0
+      })
+    ).resolves.toEqual({ status: 'sent' })
+
+    expect(enterSends).toHaveLength(2)
+    expect(enterSends[1]).toEqual({
+      terminal: 'term-1',
+      enter: true,
+      requireAgentStatus: 'sendable',
+      client: { id: 'orca-desktop', type: 'desktop' }
+    })
+  })
+
+  it('keeps the sent verdict when the submit Enter retry is refused', async () => {
+    let enterSends = 0
+    testState.callRuntimeRpc.mockImplementation(async (_target, method, params) => {
+      if (method === 'terminal.list') {
+        return {
+          terminals: [
+            {
+              handle: 'term-1',
+              worktreeId: 'wt-1',
+              worktreePath: '/repo',
+              branch: 'main',
+              tabId: 'tab-1',
+              leafId: LEAF_ID,
+              title: 'Codex',
+              connected: true,
+              writable: true,
+              lastOutputAt: 1,
+              preview: ''
+            }
+          ],
+          totalCount: 1,
+          truncated: false
+        }
+      }
+      if (method === 'terminal.agentStatus') {
+        return { agentStatus: { handle: 'term-1', isRunningAgent: true, status: 'idle' } }
+      }
+      if (method === 'terminal.wait') {
+        return {
+          wait: {
+            handle: 'term-1',
+            condition: 'tui-idle',
+            satisfied: true,
+            status: 'running',
+            exitCode: null
+          }
+        }
+      }
+      if (method === 'terminal.send') {
+        if (params.enter === true) {
+          enterSends += 1
+          if (enterSends > 1) {
+            return { send: { handle: 'term-1', accepted: false, bytesWritten: 0 } }
+          }
+        }
+        return { send: { handle: 'term-1', accepted: true, bytesWritten: 1 } }
+      }
+      throw new Error(`unexpected method ${method}`)
+    })
+
+    await expect(
+      sendNotesToActiveAgentSession({
+        worktreeId: 'wt-1',
+        prompt: 'notes',
+        submitRetryDelayMs: 0
+      })
+    ).resolves.toEqual({ status: 'sent' })
+
+    expect(enterSends).toBe(2)
   })
 
   it('maps active-focused guarded paste permission refusal to permission', async () => {

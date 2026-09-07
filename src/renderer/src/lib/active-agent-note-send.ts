@@ -36,18 +36,23 @@ export {
 } from './active-agent-note-send-result'
 
 const ACTIVE_AGENT_SEND_TIMEOUT_MS = 8000
+// Why: TUIs still digesting the bracketed paste can swallow the first Enter
+// (agent-paste-draft retries around the same failure for launch drafts).
+const SUBMIT_ENTER_RETRY_DELAY_MS = 1200
 const ORCA_DESKTOP_TERMINAL_CLIENT = { id: 'orca-desktop', type: 'desktop' as const }
 
 export async function sendNotesToActiveAgentSession({
   worktreeId,
   prompt,
   noteTarget: explicitNoteTarget,
-  timeoutMs
+  timeoutMs,
+  submitRetryDelayMs
 }: {
   worktreeId: string
   prompt: string
   noteTarget?: ActiveTerminalNoteTarget
   timeoutMs?: number
+  submitRetryDelayMs?: number
 }): Promise<ActiveAgentNotesSendResult> {
   const trimmedPrompt = prompt.trim()
   if (!trimmedPrompt) {
@@ -79,7 +84,9 @@ export async function sendNotesToActiveAgentSession({
   }
 
   if (explicitNoteTarget) {
-    return await sendPromptToExplicitAgentTarget(runtimeTarget, terminal.handle, trimmedPrompt)
+    return await sendPromptToExplicitAgentTarget(runtimeTarget, terminal.handle, trimmedPrompt, {
+      submitRetryDelayMs
+    })
   }
 
   const effectiveTimeoutMs = timeoutMs ?? ACTIVE_AGENT_SEND_TIMEOUT_MS
@@ -125,7 +132,8 @@ export async function sendNotesToActiveAgentSession({
 
   if (finalAgentStatus.supportsGuardedSend) {
     return await sendPromptWithGuardedPasteAndEnter(runtimeTarget, terminal.handle, trimmedPrompt, {
-      allowLegacyFallback: false
+      allowLegacyFallback: false,
+      submitRetryDelayMs
     })
   }
 
@@ -168,7 +176,7 @@ async function sendPromptWithGuardedPasteAndEnter(
   runtimeTarget: ReturnType<typeof getActiveRuntimeTarget>,
   terminalHandle: string,
   prompt: string,
-  options: { allowLegacyFallback: boolean }
+  options: { allowLegacyFallback: boolean; submitRetryDelayMs?: number }
 ): Promise<ActiveAgentNotesSendResult> {
   const initialAgentStatus = await getTerminalAgentSendReadiness(runtimeTarget, terminalHandle, {
     allowLegacyFallback: options.allowLegacyFallback
@@ -245,21 +253,58 @@ async function sendPromptWithGuardedPasteAndEnter(
       },
       { timeoutMs: ACTIVE_AGENT_SEND_RPC_TIMEOUT_MS }
     )
-    return send.accepted ? { status: 'sent' } : { status: 'partial-submit-failed' }
+    if (!send.accepted) {
+      return { status: 'partial-submit-failed' }
+    }
   } catch (error) {
     if (isRuntimeTerminalUnavailable(error) || isRuntimeTerminalNotWritable(error)) {
       return { status: 'partial-submit-failed' }
     }
     throw error
   }
+
+  await sendSubmitEnterRetry(
+    runtimeTarget,
+    terminalHandle,
+    options.submitRetryDelayMs ?? SUBMIT_ENTER_RETRY_DELAY_MS
+  )
+  return { status: 'sent' }
+}
+
+// Why: a TUI that swallowed the first Enter still holds the pasted text in an
+// idle composer; the guarded retry only reaches that state, and an already
+// submitted agent treats the extra Enter on an empty composer as a no-op.
+async function sendSubmitEnterRetry(
+  runtimeTarget: ReturnType<typeof getActiveRuntimeTarget>,
+  terminalHandle: string,
+  delayMs: number
+): Promise<void> {
+  await new Promise<void>((resolve) => setTimeout(resolve, delayMs))
+  try {
+    await callRuntimeRpc<{ send: RuntimeTerminalSend }>(
+      runtimeTarget,
+      'terminal.send',
+      {
+        terminal: terminalHandle,
+        enter: true,
+        requireAgentStatus: 'sendable',
+        client: ORCA_DESKTOP_TERMINAL_CLIENT
+      },
+      { timeoutMs: ACTIVE_AGENT_SEND_RPC_TIMEOUT_MS }
+    )
+  } catch {
+    // Why: best-effort retry never downgrades the first Enter's verdict.
+  }
 }
 
 async function sendPromptToExplicitAgentTarget(
   runtimeTarget: ReturnType<typeof getActiveRuntimeTarget>,
   terminalHandle: string,
-  prompt: string
+  prompt: string,
+  options: { submitRetryDelayMs?: number }
 ): Promise<ActiveAgentNotesSendResult> {
   return await sendPromptWithGuardedPasteAndEnter(runtimeTarget, terminalHandle, prompt, {
-    allowLegacyFallback: false
+    allowLegacyFallback: false,
+    submitRetryDelayMs: options.submitRetryDelayMs
   })
 }
