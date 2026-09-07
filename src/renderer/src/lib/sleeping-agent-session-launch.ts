@@ -21,6 +21,9 @@ export type ResumeSleepingAgentSessionsOptions = {
   /** Limits a user-initiated wake to one stored pane while retaining every
    * provider-session ownership and host-authority fence in the normal sweep. */
   onlyPaneKey?: string
+  /** Allows an explicitly selected completed session to resume for a follow-up.
+   * Automatic wakes must continue treating completed sessions as passive history. */
+  allowPassiveCompletedResume?: boolean
   /** Provider-session claim keys already woken in place by mounted panes
    *  (WAKE_HIBERNATED_AGENTS_WORKTREE_EVENT). Their sleeping records are
    *  cleared only after the in-place spawn succeeds, so the generic resume

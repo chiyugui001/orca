@@ -58,6 +58,7 @@ describe('wakeSleepingAgentSessionAndSendNotes', () => {
 
     expect(harness.resumeSleepingAgentSessionsForWorktree).toHaveBeenCalledWith('wt-1', {
       onlyPaneKey: record.paneKey,
+      allowPassiveCompletedResume: true,
       suppressNavigation: true,
       onSessionLaunched: expect.any(Function)
     })

@@ -86,7 +86,7 @@ export function MarkdownPreviewReviewToolbar({
     <>
       <button
         type="button"
-        className="h-6 shrink-0 gap-1 rounded-full border border-border/70 bg-muted/40 px-2 text-[11px] font-medium leading-none text-foreground/80 hover:bg-accent hover:text-foreground disabled:opacity-50"
+        className="h-6 shrink-0 gap-1 rounded-full border border-border/70 bg-muted/40 px-1.5 text-[11px] font-medium leading-none text-foreground/80 hover:bg-accent hover:text-foreground disabled:opacity-50"
         onClick={toggleReviewRail ?? goToNextReviewNote}
         disabled={toggleReviewRail === undefined && !canGoToNext}
         aria-pressed={toggleReviewRail ? reviewRailOpen : undefined}
@@ -97,9 +97,6 @@ export function MarkdownPreviewReviewToolbar({
         )}
       >
         <MessageSquare className="size-3.5" />
-        <span>
-          {translate('auto.components.editor.MarkdownPreview.322afab6ff', 'Review notes')}
-        </span>
         <span className="markdown-review-count">{notes.length}</span>
       </button>
       <button

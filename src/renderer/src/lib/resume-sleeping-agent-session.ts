@@ -190,8 +190,12 @@ export function resumeSleepingAgentSessionsForWorktree(
   const validWorktreeRecords = worktreeRecords.filter(
     (record) => !isInvalidWorktreeActivationRecord(record)
   )
+  const explicitlyResumedPaneKey = options?.allowPassiveCompletedResume
+    ? options.onlyPaneKey
+    : undefined
   const activeWorktreeRecords = validWorktreeRecords.filter(
-    (record) => !isPassiveCompletedHibernationEvidence(record)
+    (record) =>
+      !isPassiveCompletedHibernationEvidence(record) || record.paneKey === explicitlyResumedPaneKey
   )
   const activeClaimKeys = new Set(activeWorktreeRecords.map(getProviderSessionClaimKey))
   const newestActiveRecordByClaimKey = getNewestActiveRecordsByClaimKey(activeWorktreeRecords)
@@ -220,6 +224,8 @@ export function resumeSleepingAgentSessionsForWorktree(
       state.clearSleepingAgentSession(record.paneKey)
       continue
     }
+    const isExplicitPassiveResume =
+      record.paneKey === explicitlyResumedPaneKey && isPassiveCompletedHibernationEvidence(record)
     const unhydratedMirror = findUnhydratedHostMirrorForPane(record, currentState)
     if (unhydratedMirror) {
       // Why: pane ownership is undecidable until the mirror answers, and every
@@ -233,7 +239,7 @@ export function resumeSleepingAgentSessionsForWorktree(
       continue
     }
     const isPaneOwned = recordPaneIsOwnedByPreservedPane(record, currentState)
-    if (isPassiveCompletedHibernationEvidence(record)) {
+    if (isPassiveCompletedHibernationEvidence(record) && !isExplicitPassiveResume) {
       // Why: completed-agent hibernation is passive history; activation should
       // only keep displayable evidence, never start new work from it.
       if (!isPaneOwned || activeClaimKeys.has(claimKey)) {
@@ -247,7 +253,10 @@ export function resumeSleepingAgentSessionsForWorktree(
       state.clearSleepingAgentSession(record.paneKey)
       continue
     }
-    const paneOwnedClaimKeys = getCurrentPaneOwnedClaimKeys(activeWorktreeRecords)
+    const ownershipRecords = isExplicitPassiveResume
+      ? activeWorktreeRecords.filter((candidate) => candidate.paneKey !== record.paneKey)
+      : activeWorktreeRecords
+    const paneOwnedClaimKeys = getCurrentPaneOwnedClaimKeys(ownershipRecords)
     if (paneOwnedClaimKeys.has(claimKey)) {
       if (!isPaneOwned) {
         state.clearSleepingAgentSession(record.paneKey)
@@ -262,7 +271,7 @@ export function resumeSleepingAgentSessionsForWorktree(
       state.clearSleepingAgentSession(record.paneKey)
       continue
     }
-    if (isPaneOwned) {
+    if (isPaneOwned && !isExplicitPassiveResume) {
       continue
     }
     if (launchSleepingAgentSession(record, options)) {

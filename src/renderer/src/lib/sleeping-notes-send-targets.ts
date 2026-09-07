@@ -3,8 +3,7 @@ import { AGENT_STATUS_STALE_AFTER_MS } from '../../../shared/agent-status-types'
 import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
 import {
   getProviderSessionClaimKey,
-  isPassiveCompletedHibernationEvidence,
-  recordPaneIsOwnedByPreservedPane
+  recordPaneHasLivePty
 } from './sleeping-agent-pane-ownership'
 import type { WorkspaceTerminalHostAuthority } from './workspace-terminal-host-authority'
 
@@ -46,7 +45,7 @@ export function deriveSleepingNotesSendTargets(
   }
 
   return [...newestRecordByClaim.values()]
-    .filter((record) => !recordPaneIsOwnedByPreservedPane(record, state as AppState))
+    .filter((record) => !recordPaneHasLivePty(record, state as AppState))
     .sort((left, right) => right.updatedAt - left.updatedAt)
     .map((record) => {
       const disabledReason =
@@ -63,11 +62,7 @@ export function deriveSleepingNotesSendTargets(
 }
 
 function isSendableSleepingRecord(record: SleepingAgentSessionRecord): boolean {
-  if (
-    record.automaticResumeBlockedBy ||
-    record.restoreOnTabOpenOnly ||
-    isPassiveCompletedHibernationEvidence(record)
-  ) {
+  if (record.automaticResumeBlockedBy) {
     return false
   }
   return record.state === 'done' || record.capturedAt - record.updatedAt <= AGENT_STATUS_STALE_AFTER_MS

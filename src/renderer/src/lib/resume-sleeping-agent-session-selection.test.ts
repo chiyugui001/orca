@@ -46,4 +46,25 @@ describe('resumeSleepingAgentSessionsForWorktree selection', () => {
     expect(state.sleepingAgentSessionsByPaneKey[first.paneKey]).toBe(first)
     expect(state.sleepingAgentSessionsByPaneKey[selected.paneKey]).toBeUndefined()
   })
+
+  it('resumes a selected completed record without enabling automatic wake', () => {
+    const selected = {
+      ...record('old-done:leaf-done', 'session-done'),
+      state: 'done' as const,
+      origin: 'worktree-sleep' as const,
+      restoreOnTabOpenOnly: true
+    }
+    useAppStore.setState({
+      tabsByWorktree: { 'wt-1': [] },
+      sleepingAgentSessionsByPaneKey: { [selected.paneKey]: selected }
+    } as never)
+
+    expect(
+      resumeSleepingAgentSessionsForWorktree('wt-1', {
+        onlyPaneKey: selected.paneKey,
+        allowPassiveCompletedResume: true
+      })
+    ).toBe(1)
+    expect(useAppStore.getState().sleepingAgentSessionsByPaneKey[selected.paneKey]).toBeUndefined()
+  })
 })

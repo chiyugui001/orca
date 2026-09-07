@@ -112,6 +112,28 @@ function stablePaneHasLivePty(
   return layout?.root?.type === 'leaf' && layout.root.leafId === leafId
 }
 
+export function recordPaneHasLivePty(
+  record: SleepingAgentSessionRecord,
+  state: AppStoreState
+): boolean {
+  const stable = parsePaneKey(record.paneKey)
+  if (stable) {
+    const tabId = record.tabId ?? stable.tabId
+    if (record.tabId && record.tabId !== stable.tabId) {
+      return false
+    }
+    return stablePaneHasLivePty(
+      tabId,
+      stable.leafId,
+      state.ptyIdsByTabId,
+      state.terminalLayoutsByTabId[tabId]
+    )
+  }
+
+  const tabId = getLegacyPaneTabId(record)
+  return Boolean(tabId && (state.ptyIdsByTabId[tabId]?.length ?? 0) > 0)
+}
+
 function paneWillConnectOnActivation(
   worktreeId: string,
   tabId: string,
