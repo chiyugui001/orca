@@ -27,6 +27,7 @@ import {
 import { wakeSleepingAgentSessionAndSendNotes } from '@/lib/send-notes-to-sleeping-agent-session'
 import { createWorkspaceTerminalHostAuthoritySelector } from '@/lib/workspace-terminal-host-authority'
 import { ReviewNotesSleepingSessionMenuItem } from './ReviewNotesSleepingSessionMenuItem'
+import { filterActiveNotesSendTargetsWithSleepingSessions } from './review-notes-send-target-partition'
 import {
   agentKindForAgentType,
   formatAgentTypeLabel,
@@ -64,9 +65,6 @@ export function ReviewNotesSendMenuContent({
 }): React.JSX.Element {
   const hasPrompt = prompt.trim().length > 0
 
-  // Why: enumerate every running agent of the worktree so the user can target
-  // any of them — not only the focused pane. Derive from store slices in a memo
-  // to avoid the new-array identity churn of selecting the function result.
   const agentStatusByPaneKey = useAppStore((s) => s.agentStatusByPaneKey)
   const tabsByWorktree = useAppStore((s) => s.tabsByWorktree)
   const terminalLayoutsByTabId = useAppStore((s) => s.terminalLayoutsByTabId)
@@ -104,10 +102,6 @@ export function ReviewNotesSendMenuContent({
     ptyIdsByTabId,
     worktreeId
   ])
-  const orderedSendTargets = useMemo(
-    () => orderSendTargetsByWorktreeAgentRows(sendTargets, agentRows),
-    [agentRows, sendTargets]
-  )
   const sleepingSendTargets = useMemo(
     () =>
       deriveSleepingNotesSendTargets(
@@ -129,6 +123,10 @@ export function ReviewNotesSendMenuContent({
       terminalLayoutsByTabId,
       worktreeId
     ]
+  )
+  const orderedSendTargets = useMemo(
+    () => orderSendTargetsByWorktreeAgentRows(filterActiveNotesSendTargetsWithSleepingSessions(sendTargets, sleepingSendTargets), agentRows),
+    [agentRows, sendTargets, sleepingSendTargets]
   )
 
   const runNotesSend = useCallback(
