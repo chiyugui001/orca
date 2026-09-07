@@ -77,7 +77,14 @@ export function handleRichMarkdownEditorClick({
   if (!editor) {
     return false
   }
+  const clickedNode = view.state.doc.nodeAt(pos)
   if (!modKey) {
+    // Why: a doc link is an inert atom with no editable interior, so a plain
+    // click has no cursor-placement purpose — navigate Obsidian-style instead.
+    if (clickedNode?.type.name === 'markdownDocLink') {
+      onOpenDocLinkRef.current?.(clickedNode.attrs.target as string)
+      return true
+    }
     const selectedComment = getRichMarkdownCommentAtPos(
       editor,
       markdownCommentsRef.current,
@@ -89,7 +96,6 @@ export function handleRichMarkdownEditorClick({
     }
     return false
   }
-  const clickedNode = view.state.doc.nodeAt(pos)
   if (clickedNode?.type.name === 'image') {
     return activateMarkdownImageClick({
       activateMarkdownLink,

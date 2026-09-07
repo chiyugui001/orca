@@ -51,6 +51,59 @@ function clickExternalLinkWithShift(sourceOwner: HttpLinkSourceOwner, isMac = tr
   } as never)
 }
 
+describe('rich markdown editor plain click on doc links', () => {
+  function plainClickDocLink(nodeAtResult: unknown): {
+    handled: boolean
+    openDocLink: (target: string) => void
+  } {
+    const openDocLink = vi.fn()
+    const view = {
+      state: {
+        doc: {
+          nodeAt: () => nodeAtResult,
+          resolve: () => ({ marks: () => [] })
+        }
+      }
+    } as unknown as EditorView
+    const handled = handleRichMarkdownEditorClick({
+      activateMarkdownLink: vi.fn(),
+      editorRef: { current: {} } as unknown as MutableRefObject<unknown>,
+      event: { metaKey: false, ctrlKey: false, shiftKey: false } as MouseEvent,
+      filePath: '/repo/docs/README.md',
+      isMac: false,
+      htmlSuperscriptLinkContext: { getSnapshot: () => ({ sourceOwner: { kind: 'local' } }) },
+      markdownCommentsRef: { current: [] },
+      markdownSourceLineOffsetRef: { current: 0 },
+      onOpenDocLinkRef: { current: openDocLink },
+      pos: 1,
+      rootRef: { current: null },
+      scrollRichMarkdownReviewNoteCardIntoView: vi.fn(),
+      settings: {} as never,
+      view,
+      worktreeId: 'wt-1',
+      worktreeRoot: '/repo'
+    } as never)
+    return { handled, openDocLink }
+  }
+
+  it('opens the doc link target on plain click without a modifier', () => {
+    const { handled, openDocLink } = plainClickDocLink({
+      type: { name: 'markdownDocLink' },
+      attrs: { target: 'notes/design.md' }
+    })
+
+    expect(handled).toBe(true)
+    expect(openDocLink).toHaveBeenCalledWith('notes/design.md')
+  })
+
+  it('keeps plain clicks on other content falling through to the editor', () => {
+    const { handled, openDocLink } = plainClickDocLink(null)
+
+    expect(handled).toBe(false)
+    expect(openDocLink).not.toHaveBeenCalled()
+  })
+})
+
 describe('rich markdown editor Shift+modifier click on external links', () => {
   // Why: intentionally NOT the preview's behavior — this path hands the link to the
   // client OS, so it must keep forcing the system browser even when inverting is on.
