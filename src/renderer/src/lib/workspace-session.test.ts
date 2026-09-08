@@ -189,9 +189,7 @@ describe('buildWorkspaceSessionPayload', () => {
             language: 'markdown',
             mode: 'edit',
             isDirty: false,
-            isPreview: false,
-            content: '',
-            originalContent: ''
+            isPreview: false
           },
           {
             id: 'markdown-preview::/tmp/notes.md',
@@ -202,9 +200,7 @@ describe('buildWorkspaceSessionPayload', () => {
             mode: 'markdown-preview',
             isDirty: false,
             isPreview: false,
-            markdownPreviewSourceFileId: '/tmp/notes.md',
-            content: '',
-            originalContent: ''
+            markdownPreviewSourceFileId: '/tmp/notes.md'
           }
         ]
       })
