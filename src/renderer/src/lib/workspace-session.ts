@@ -61,6 +61,9 @@ export type WorkspaceSessionSnapshot = Pick<
   activeWorkspaceExecutionHostId?: AppState['activeWorkspaceExecutionHostId']
   sleepingAgentSessionsByPaneKey?: AppState['sleepingAgentSessionsByPaneKey']
   clientHostedBrowserCloseIntentsByEnvironment?: AppState['clientHostedBrowserCloseIntentsByEnvironment']
+  /** Optional so the many partial snapshot fixtures keep type-checking; see buildTerminalSessionData. */
+  pendingReconnectPtyIdByTabId?: AppState['pendingReconnectPtyIdByTabId']
+  deferredSshSessionIdsByTabId?: AppState['deferredSshSessionIdsByTabId']
 }
 
 // Why: shallow-equality gate for the debounced session writer; _exhaustive below keeps it in sync with the snapshot type.
@@ -97,7 +100,9 @@ export const SESSION_RELEVANT_FIELDS = [
   'defaultTerminalTabsAppliedByWorktreeId',
   'closedTerminalTabTombstonesByTabId',
   'sleepingAgentSessionsByPaneKey',
-  'clientHostedBrowserCloseIntentsByEnvironment'
+  'clientHostedBrowserCloseIntentsByEnvironment',
+  'pendingReconnectPtyIdByTabId',
+  'deferredSshSessionIdsByTabId'
 ] as const satisfies readonly (keyof WorkspaceSessionSnapshot)[]
 
 type _MissingSessionField = Exclude<
@@ -107,7 +112,8 @@ type _MissingSessionField = Exclude<
 void (true satisfies [_MissingSessionField] extends [never] ? true : never)
 
 /** Build the editor-file portion of the workspace session for persistence.
- *  Only edit-mode files are saved — diffs and conflict views are transient. */
+ *  Edit-mode files and markdown previews are saved — diffs and conflict views
+ *  are transient. */
 export function buildEditorSessionData(
   openFiles: OpenFile[],
   editorDrafts: Record<string, string>,
@@ -121,13 +127,16 @@ export function buildEditorSessionData(
   | 'activeTabTypeByWorktree'
   | 'markdownFrontmatterVisible'
 > {
-  const editFiles = openFiles.filter((f) => f.mode === 'edit')
+  // Why: previews are user-opened surfaces keyed to their source file; keeping
+  // them lets hydration rebuild `markdown-preview::<sourceId>` open files.
+  const persistedFiles = openFiles.filter((f) => f.mode === 'edit' || f.mode === 'markdown-preview')
   const byWorktree: Record<string, PersistedOpenFile[]> = {}
   const editFileIdsByWorktree: Record<string, Set<string>> = {}
-  for (const f of editFiles) {
+  for (const f of persistedFiles) {
     const arr = byWorktree[f.worktreeId] ?? (byWorktree[f.worktreeId] = [])
     // Why: never persist a dirty draft for a read-only tab — restoring one would reintroduce writable/hot-exit state for an agent transcript.
-    const dirtyDraftContent = f.isDirty && f.readOnly !== true ? editorDrafts[f.id] : undefined
+    const dirtyDraftContent =
+      f.isDirty && f.mode === 'edit' && f.readOnly !== true ? editorDrafts[f.id] : undefined
     arr.push({
       filePath: f.filePath,
       relativePath: f.relativePath,
@@ -143,7 +152,8 @@ export function buildEditorSessionData(
       // Why: baseline travels with the draft so restore can detect a changed-on-disk conflict before autosave clobbers an offline agent write.
       ...(dirtyDraftContent !== undefined && f.lastKnownDiskSignature
         ? { lastKnownDiskSignature: f.lastKnownDiskSignature }
-        : {})
+        : {}),
+      ...(f.mode === 'markdown-preview' ? { mode: 'markdown-preview' as const } : {})
     })
     const ids =
       editFileIdsByWorktree[f.worktreeId] ?? (editFileIdsByWorktree[f.worktreeId] = new Set())
@@ -222,8 +232,18 @@ export function buildTerminalSessionData(
 
   // Why: relay reconnect keeps lastKnown but clears tab.ptyId; the !tab.ptyId guard excludes slept tabs (which keep ptyId as a wake hint).
   const lastKnown = snapshot.lastKnownRelayPtyIdByTabId
+  // Why the two reconnect maps (#17743): hydration nulls tab.ptyId, empties ptyIdsByTabId, and
+  // never restores lastKnown, so on a fresh process they are the ONLY surviving handle for a
+  // relay-backed tab between restore and rebind. Persisting without them republishes the nulled
+  // row over the id the file (and the relay snapshot) still held, which is the client's own
+  // bookkeeping being read as evidence the remote PTY is gone. Both already count as live
+  // ownership for the orphan sweep (terminal-orphan-helpers) and for retirement planning.
+  const pendingReconnect = snapshot.pendingReconnectPtyIdByTabId ?? {}
+  const deferredSshSessions = snapshot.deferredSshSessionIdsByTabId ?? {}
+  const restoredSessionId = (tabId: string): string | undefined =>
+    lastKnown[tabId] || pendingReconnect[tabId] || deferredSshSessions[tabId]
   const hasReconnectableSession = (tab: { id: string; ptyId: string | null }): boolean =>
-    hasLivePty(tab.id) || (!tab.ptyId && Boolean(lastKnown[tab.id]))
+    hasLivePty(tab.id) || (!tab.ptyId && Boolean(restoredSessionId(tab.id)))
 
   const activeWorktreeIdsOnShutdown = Object.entries(tabsByWorktree)
     .filter(([, tabs]) => tabs.some(hasReconnectableSession))
@@ -249,7 +269,7 @@ export function buildTerminalSessionData(
       if (!hasReconnectableSession(tab)) {
         continue
       }
-      const sessionId = tab.ptyId || lastKnown[tab.id]
+      const sessionId = tab.ptyId || restoredSessionId(tab.id)
       if (sessionId) {
         remoteSessionIdsByTabId[tab.id] = sessionId
       }

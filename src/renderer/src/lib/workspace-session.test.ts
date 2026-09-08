@@ -177,6 +177,45 @@ describe('buildWorkspaceSessionPayload', () => {
     expect(payload.browserTabsByWorktree?.['wt-1'][0].loading).toBe(false)
   })
 
+  it('persists markdown previews alongside edit files so their tabs survive restart', () => {
+    const payload = buildWorkspaceSessionPayload(
+      createSnapshot({
+        openFiles: [
+          {
+            id: '/tmp/notes.md',
+            filePath: '/tmp/notes.md',
+            relativePath: 'notes.md',
+            worktreeId: 'wt-1',
+            language: 'markdown',
+            mode: 'edit',
+            isDirty: false,
+            isPreview: false,
+            content: '',
+            originalContent: ''
+          },
+          {
+            id: 'markdown-preview::/tmp/notes.md',
+            filePath: '/tmp/notes.md',
+            relativePath: 'notes.md',
+            worktreeId: 'wt-1',
+            language: 'markdown',
+            mode: 'markdown-preview',
+            isDirty: false,
+            isPreview: false,
+            markdownPreviewSourceFileId: '/tmp/notes.md',
+            content: '',
+            originalContent: ''
+          }
+        ]
+      })
+    )
+
+    expect(payload.openFilesByWorktree?.['wt-1']).toEqual([
+      expect.objectContaining({ filePath: '/tmp/notes.md' }),
+      expect.objectContaining({ filePath: '/tmp/notes.md', mode: 'markdown-preview' })
+    ])
+  })
+
   it('persists front-matter hide overrides only for restored editor files', () => {
     const payload = buildWorkspaceSessionPayload(
       createSnapshot({

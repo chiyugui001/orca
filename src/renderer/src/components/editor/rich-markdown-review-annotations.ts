@@ -3,6 +3,7 @@ import type { Editor } from '@tiptap/react'
 import type { JSONContent } from '@tiptap/core'
 import type { DiffComment } from '../../../../shared/diff-comment-types'
 import type { RichMarkdownAnnotationHighlightRange } from './rich-markdown-annotation-highlight'
+import { getRichMarkdownRangeStart } from './rich-markdown-range-bounds'
 import type { RichMarkdownReviewNotePosition } from './rich-markdown-review-note-layout'
 import { findRichMarkdownSelectedTextRanges } from './rich-markdown-review-text-ranges'
 import { countRichMarkdownReviewMarkdownLines } from './rich-markdown-review-line-count'
@@ -124,7 +125,7 @@ export function getRichMarkdownAnnotationHighlightRangesForComment(
   comment: DiffComment,
   markdownSourceLineOffset: number,
   // Why optional: callers looping over comments pass one shared build.
-  prebuiltBlocks?: RichMarkdownCommentBlock[]
+  prebuiltBlocks?: readonly RichMarkdownCommentBlock[]
 ): RichMarkdownAnnotationHighlightRange[] {
   const blocks = prebuiltBlocks ?? buildRichMarkdownCommentBlocks(editor)
   const selectedText = comment.selectedText?.trim()
@@ -169,6 +170,35 @@ export function getRichMarkdownCommentAtPos(
       ).some((range) => range.from <= pos && pos <= range.to)
     ) ?? null
   )
+}
+
+export function getRichMarkdownCommentAnchorTop(
+  editor: Editor,
+  comment: DiffComment,
+  block: RichMarkdownCommentBlock,
+  containerRect: DOMRect,
+  containerScrollTop: number,
+  markdownSourceLineOffset: number,
+  prebuiltBlocks?: readonly RichMarkdownCommentBlock[]
+): number | null {
+  try {
+    const ranges = getRichMarkdownAnnotationHighlightRangesForComment(
+      editor,
+      comment,
+      markdownSourceLineOffset,
+      prebuiltBlocks
+    )
+    // Why: range notes should sort by the start of the selected text. Anchoring
+    // to the end puts overlapping ranges with the same final line in creation
+    // order, so a 43-45 card can render above a 41-45 card.
+    const anchorPos = getRichMarkdownRangeStart(ranges) ?? block.from
+    const coords = editor.view.coordsAtPos(
+      Math.max(1, Math.min(anchorPos, editor.state.doc.content.size))
+    )
+    return coords.top - containerRect.top + containerScrollTop
+  } catch {
+    return null
+  }
 }
 
 export function hasRichMarkdownCommentForRange(

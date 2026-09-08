@@ -86,6 +86,63 @@ describe('hydrateEditorSession', () => {
     expect(s.activeTabType).toBe('editor')
   })
 
+  it('restores markdown previews with derived ids so their tabs stay live', () => {
+    const store = createTestStore()
+    const wt = 'repo1::/path/wt1'
+
+    store.setState({
+      repos: [
+        { id: 'repo1', path: '/repo1', displayName: 'Repo 1', badgeColor: '#000', addedAt: 0 }
+      ],
+      worktreesByRepo: {
+        repo1: [makeWorktree({ id: wt, repoId: 'repo1', path: '/path/wt1' })]
+      },
+      activeWorktreeId: wt
+    })
+
+    store.getState().hydrateEditorSession({
+      activeRepoId: 'repo1',
+      activeWorktreeId: wt,
+      activeTabId: null,
+      tabsByWorktree: {},
+      terminalLayoutsByTabId: {},
+      openFilesByWorktree: {
+        [wt]: [
+          {
+            filePath: '/path/wt1/notes.md',
+            relativePath: 'notes.md',
+            worktreeId: wt,
+            language: 'markdown'
+          },
+          {
+            filePath: '/path/wt1/notes.md',
+            relativePath: 'notes.md',
+            worktreeId: wt,
+            language: 'markdown',
+            mode: 'markdown-preview'
+          }
+        ]
+      },
+      activeFileIdByWorktree: { [wt]: 'markdown-preview::/path/wt1/notes.md' },
+      activeTabTypeByWorktree: { [wt]: 'editor' },
+      markdownFrontmatterVisible: {}
+    })
+
+    const s = store.getState()
+    expect(s.openFiles).toHaveLength(2)
+    expect(s.openFiles[0]).toMatchObject({
+      id: '/path/wt1/notes.md',
+      mode: 'edit'
+    })
+    expect(s.openFiles[1]).toMatchObject({
+      id: 'markdown-preview::/path/wt1/notes.md',
+      mode: 'markdown-preview',
+      markdownPreviewSourceFileId: '/path/wt1/notes.md',
+      isDirty: false
+    })
+    expect(s.activeFileId).toBe('markdown-preview::/path/wt1/notes.md')
+  })
+
   it('restores floating workspace markdown files without a repo worktree', () => {
     const store = createTestStore()
     const filePath = '/orca/userData/floating-workspace/note.md'

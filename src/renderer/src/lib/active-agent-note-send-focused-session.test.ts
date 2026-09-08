@@ -316,7 +316,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'permission' })
+    ).resolves.toEqual({ status: 'permission', code: 'terminal-send-permission' })
   })
 
   it('keeps active-focused sends compatible when an older runtime lacks agentStatus', async () => {
@@ -415,7 +415,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'no-agent' })
+    ).resolves.toEqual({ status: 'no-agent', code: 'no-agent' })
 
     expect(testState.callRuntimeRpc).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -459,7 +459,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'not-ready' })
+    ).resolves.toEqual({ status: 'not-ready', code: 'terminal_wait_timeout' })
 
     expect(testState.callRuntimeRpc).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -511,7 +511,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'no-active-terminal' })
+    ).resolves.toEqual({ status: 'no-active-terminal', code: 'terminal_wait_not_running' })
 
     expect(testState.callRuntimeRpc).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -564,7 +564,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'permission' })
+    ).resolves.toEqual({ status: 'permission', code: 'terminal_wait_blocked' })
 
     expect(testState.callRuntimeRpc).not.toHaveBeenCalledWith(
       expect.anything(),
@@ -624,7 +624,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'permission' })
+    ).resolves.toEqual({ status: 'permission', code: 'agent-permission' })
 
     expect(statusChecks).toBe(2)
     expect(testState.callRuntimeRpc).not.toHaveBeenCalledWith(
@@ -641,7 +641,7 @@ describe('active agent note send', () => {
 
     await expect(
       sendNotesToActiveAgentSession({ worktreeId: 'wt-1', prompt: 'notes' })
-    ).resolves.toEqual({ status: 'no-active-terminal' })
+    ).resolves.toEqual({ status: 'no-active-terminal', code: 'no-note-target' })
 
     expect(testState.callRuntimeRpc).not.toHaveBeenCalled()
   })

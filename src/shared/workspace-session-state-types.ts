@@ -31,6 +31,9 @@ export type PersistedOpenFile = {
   readOnly?: boolean
   /** Opt-in streaming append for a read-only local log tab. */
   liveTail?: boolean
+  /** Why: markdown previews are user-opened surfaces, not transient git views;
+   *  persisted so preview tabs survive a restart like their edit siblings. */
+  mode?: 'edit' | 'markdown-preview'
 }
 
 export type WorkspaceSessionState = {

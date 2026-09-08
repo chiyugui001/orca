@@ -44,13 +44,21 @@ export function createHydrateEditorSession(
         const usedOpenFileIds = new Set<string>()
         const legacyHydratedOpenFiles: LegacyHydratedEditorFile[] = []
         const editorFileIdMigrationsByWorktree: Record<string, Map<string, string>> = {}
+        // Why: a preview's restored id must embed the same source id its edit
+        // sibling gets, so both orders of the persisted records agree.
+        const baseIdByOwner = new Map<string, string>()
+        const ownerKey = (worktreeId: string, runtimeEnvironmentId: string | null | undefined) =>
+          `${worktreeId}\0${runtimeEnvironmentId ?? ''}`
         for (const [worktreeId, files] of Object.entries(openFilesByWorktree)) {
           if (!validWorktreeIds.has(worktreeId)) {
             continue
           }
           for (const pf of files) {
+            const isMarkdownPreview = pf.mode === 'markdown-preview'
             // Split tabs share one OpenFile; repeated records for the same owner are corruption.
+            // A preview legitimately repeats its source path, so it dedupes on its own id below.
             if (
+              !isMarkdownPreview &&
               legacyHydratedOpenFiles.some(
                 (file) =>
                   file.filePath === pf.filePath &&
@@ -59,34 +67,45 @@ export function createHydrateEditorSession(
             ) {
               continue
             }
-            const legacyId = resolveLegacyHydratedEditorFileId(
-              legacyHydratedOpenFiles,
-              pf,
-              worktreeId
-            )
+            const legacyId = isMarkdownPreview
+              ? pf.filePath
+              : resolveLegacyHydratedEditorFileId(legacyHydratedOpenFiles, pf, worktreeId)
             // Why: floating/runtime-owned files need IDs that survive peers disappearing between restarts; collision-based IDs drift when the path is no longer open elsewhere.
             const ownedId = buildOwnedEditorFileId(pf.filePath, worktreeId, pf.runtimeEnvironmentId)
-            const id =
-              shouldHydrateWithOwnedEditorFileId(worktreeId, pf.runtimeEnvironmentId) ||
-              usedOpenFileIds.has(pf.filePath)
-                ? ownedId
-                : pf.filePath
+            const key = ownerKey(worktreeId, pf.runtimeEnvironmentId)
+            let baseId = baseIdByOwner.get(key + pf.filePath)
+            if (baseId === undefined) {
+              baseId =
+                shouldHydrateWithOwnedEditorFileId(worktreeId, pf.runtimeEnvironmentId) ||
+                usedOpenFileIds.has(pf.filePath)
+                  ? ownedId
+                  : pf.filePath
+              baseIdByOwner.set(key + pf.filePath, baseId)
+            }
+            const id = isMarkdownPreview ? `markdown-preview::${baseId}` : baseId
             // Why: the persisted schema allows repeated (path, worktree, runtime) tuples, and an owned id repeats verbatim — restoring both would put two files under one id.
             if (usedOpenFileIds.has(id)) {
               continue
             }
             usedOpenFileIds.add(id)
             // Why: map from the collision-derived legacy id; keying by filePath would collapse same-path local/runtime tabs onto the last owner to hydrate.
-            addEditorFileIdMigration(editorFileIdMigrationsByWorktree, worktreeId, legacyId, id)
-            legacyHydratedOpenFiles.push({
-              id: legacyId,
-              filePath: pf.filePath,
+            addEditorFileIdMigration(
+              editorFileIdMigrationsByWorktree,
               worktreeId,
-              runtimeEnvironmentId: pf.runtimeEnvironmentId
-            })
+              isMarkdownPreview ? `markdown-preview::${legacyId}` : legacyId,
+              id
+            )
+            if (!isMarkdownPreview) {
+              legacyHydratedOpenFiles.push({
+                id: legacyId,
+                filePath: pf.filePath,
+                worktreeId,
+                runtimeEnvironmentId: pf.runtimeEnvironmentId
+              })
+            }
             // Why: read-only tabs (AI Vault View Log) must restore clean — ignore any persisted dirty draft/baseline so they can't come back writable.
             const isReadOnly = pf.readOnly === true
-            if (!isReadOnly && pf.dirtyDraftContent !== undefined) {
+            if (!isReadOnly && !isMarkdownPreview && pf.dirtyDraftContent !== undefined) {
               editorDrafts[id] = pf.dirtyDraftContent
             }
             openFiles.push({
@@ -96,21 +115,25 @@ export function createHydrateEditorSession(
               worktreeId,
               // Why: re-detect language on hydrate — older sessions stored ids from before extensions like .ipynb were supported.
               language: detectLanguage(pf.relativePath || pf.filePath),
-              isDirty: !isReadOnly && pf.dirtyDraftContent !== undefined,
+              isDirty: !isReadOnly && !isMarkdownPreview && pf.dirtyDraftContent !== undefined,
               isPreview: pf.isPreview,
               runtimeEnvironmentId: pf.runtimeEnvironmentId,
               externalSshTargetId: pf.externalSshTargetId,
               ...(isReadOnly ? { readOnly: true } : {}),
               ...(isReadOnly && pf.liveTail === true ? { liveTail: true } : {}),
-              lastKnownDiskSignature: isReadOnly ? undefined : pf.lastKnownDiskSignature,
+              lastKnownDiskSignature:
+                isReadOnly || isMarkdownPreview ? undefined : pf.lastKnownDiskSignature,
               // Why: suspend autosave until the conflict scan verifies disk vs baseline, else a slow remote read clobbers an offline write.
               pendingDiskBaselineVerification:
                 !isReadOnly &&
+                !isMarkdownPreview &&
                 pf.dirtyDraftContent !== undefined &&
                 pf.lastKnownDiskSignature !== undefined
                   ? true
                   : undefined,
-              mode: 'edit'
+              ...(isMarkdownPreview
+                ? { mode: 'markdown-preview' as const, markdownPreviewSourceFileId: baseId }
+                : { mode: 'edit' as const })
             })
           }
         }
