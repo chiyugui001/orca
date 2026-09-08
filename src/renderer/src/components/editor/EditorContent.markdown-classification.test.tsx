@@ -290,8 +290,10 @@ describe('inline Markdown render classification', () => {
   it('preserves unsupported and oversized rich-mode fallbacks', () => {
     const unsupported = renderEditPath({ content: '[reference]: https://example.com' })
 
-    expect(unsupported.model.canExportMarkdownToPdf).toBe(false)
-    expect(unsupported.view.getByText('Reference links require source mode.')).toBeTruthy()
+    expect(unsupported.model.inlineMarkdownRenderState?.renderMode).toBe('rich-editor-readonly')
+    expect(unsupported.model.canExportMarkdownToPdf).toBe(true)
+    expect(unsupported.view.getByText(/Reference links require source mode/)).toBeTruthy()
+    expect(unsupported.view.getByText(/read-only rich view/)).toBeTruthy()
     expect(unsupported.view.queryByText('Open anyway')).toBeNull()
     unsupported.view.unmount()
 

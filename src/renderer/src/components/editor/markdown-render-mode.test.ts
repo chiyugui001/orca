@@ -32,14 +32,14 @@ describe('getMarkdownRenderMode', () => {
     ).toBe('preview')
   })
 
-  it('falls back to source mode when rich editing is unsupported', () => {
+  it('renders read-only rich mode when rich editing is unsupported', () => {
     expect(
       getMarkdownRenderMode({
         exceedsRichModeSizeLimit: false,
         hasRichModeUnsupportedContent: true,
         viewMode: 'rich'
       })
-    ).toBe('source')
+    ).toBe('rich-editor-readonly')
   })
 
   it('falls back to source mode when the markdown is too large for rich editing', () => {

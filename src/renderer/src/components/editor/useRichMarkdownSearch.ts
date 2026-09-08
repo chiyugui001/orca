@@ -14,15 +14,18 @@ import {
   richMarkdownSearchPluginKey
 } from './rich-markdown-search'
 import { createRichMarkdownSearchMatchesCache } from './rich-markdown-search-matches-cache'
+import { useRichMarkdownSearchReplace } from './rich-markdown-search-replace'
 
 export function useRichMarkdownSearch({
   editor,
   rootRef,
-  scrollContainerRef
+  scrollContainerRef,
+  readOnly = false
 }: {
   editor: Editor | null
   rootRef: RefObject<HTMLDivElement | null>
   scrollContainerRef: RefObject<HTMLDivElement | null>
+  readOnly?: boolean
 }) {
   const searchInputRef = useRef<HTMLInputElement | null>(null)
   const keybindings = useAppStore((state) => state.keybindings)
@@ -94,7 +97,9 @@ export function useRichMarkdownSearch({
   // Why: mirror the guard used by replaceCurrentMatch/replaceAllMatches so the
   // disabled state never disagrees with what a click will actually do during the
   // debounce window when live matches diverge from the highlight set.
-  const replaceDisabled = getLiveMatches().some((match) => match.touchesReadOnlyAtom)
+  // Read-only documents disable replace entirely — a dispatched replace would
+  // mutate the view with no write-back path.
+  const replaceDisabled = readOnly || getLiveMatches().some((match) => match.touchesReadOnlyAtom)
 
   // Clamp the user-controlled index to the valid range on every render.
   // No state update needed — this is a pure derivation.
@@ -146,64 +151,13 @@ export function useRichMarkdownSearch({
   const toggleWholeWord = useCallback(() => setWholeWord((value) => !value), [])
   const toggleReplaceMode = useCallback(() => setIsReplaceMode((value) => !value), [])
 
-  const replaceRange = useCallback(
-    (from: number, to: number) => {
-      if (!editor) {
-        return
-      }
-      const tr = editor.state.tr
-      // Why: empty replacement must delete the range — ProseMirror text nodes
-      // can't hold an empty string, so insertText('') would be a no-op.
-      if (replaceQuery) {
-        tr.insertText(replaceQuery, from, to)
-      } else {
-        tr.delete(from, to)
-      }
-      editor.view.dispatch(tr)
-    },
-    [editor, replaceQuery]
-  )
-
-  const replaceCurrentMatch = useCallback(() => {
-    const liveMatches = getLiveMatches()
-    if (liveMatches.length === 0) {
-      return
-    }
-    const liveActiveMatchIndex =
-      activeMatchIndex >= 0 && activeMatchIndex < liveMatches.length ? activeMatchIndex : 0
-    const match = liveMatches[liveActiveMatchIndex]
-    if (!match || liveMatches.some((candidate) => candidate.touchesReadOnlyAtom)) {
-      return
-    }
-    // Why: removing the active match shifts the next match into the same index,
-    // so leaving rawActiveMatchIndex untouched advances to it after recompute.
-    replaceRange(match.from, match.to)
-  }, [activeMatchIndex, getLiveMatches, replaceRange])
-
-  const replaceAllMatches = useCallback(() => {
-    if (!editor) {
-      return
-    }
-    const liveMatches = getLiveMatches()
-    if (
-      liveMatches.length === 0 ||
-      liveMatches.some((candidate) => candidate.touchesReadOnlyAtom)
-    ) {
-      return
-    }
-    const tr = editor.state.tr
-    // Why: process matches last-to-first so each edit can't invalidate the
-    // positions of matches we haven't replaced yet, keeping it a single undo.
-    for (let index = liveMatches.length - 1; index >= 0; index -= 1) {
-      const match = liveMatches[index]
-      if (replaceQuery) {
-        tr.insertText(replaceQuery, match.from, match.to)
-      } else {
-        tr.delete(match.from, match.to)
-      }
-    }
-    editor.view.dispatch(tr)
-  }, [editor, getLiveMatches, replaceQuery])
+  const { replaceCurrentMatch, replaceAllMatches } = useRichMarkdownSearchReplace({
+    editor,
+    readOnly,
+    replaceQuery,
+    activeMatchIndex,
+    getLiveMatches
+  })
 
   const moveToMatch = useCallback(
     (direction: 1 | -1) => {

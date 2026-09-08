@@ -36,6 +36,9 @@ function shouldFocusEmptyEditorFromSurfaceClick(
 type RichMarkdownEditorSurfaceProps = {
   editor: Editor | null
   editorFontZoomLevel: number
+  // Why: hides the formatting toolbar — read-only rendering keeps search, ToC
+  // and annotations, none of which need editing controls.
+  readOnly?: boolean
   rootElement: HTMLDivElement | null
   rootRef: (node: HTMLDivElement | null) => void
   scrollContainerRef: React.RefObject<HTMLDivElement | null>
@@ -120,6 +123,7 @@ type RichMarkdownEditorSurfaceProps = {
 export function RichMarkdownEditorSurface({
   editor,
   editorFontZoomLevel,
+  readOnly = false,
   rootElement,
   rootRef,
   scrollContainerRef,
@@ -186,11 +190,13 @@ export function RichMarkdownEditorSurface({
         }`.trim()}
         style={{ '--editor-font-zoom-level': editorFontZoomLevel } as React.CSSProperties}
       >
-        <RichMarkdownToolbar
-          editor={editor}
-          onToggleLink={onToggleLink}
-          onImagePick={onImagePick}
-        />
+        {readOnly ? null : (
+          <RichMarkdownToolbar
+            editor={editor}
+            onToggleLink={onToggleLink}
+            onImagePick={onImagePick}
+          />
+        )}
         {headerSlot}
         <div className="relative min-h-0 flex-1">
           <div

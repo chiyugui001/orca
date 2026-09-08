@@ -71,6 +71,7 @@ function createConfigParams(overrides: Partial<EditorConfigParams> = {}): Editor
     isApplyingProgrammaticUpdateRef: ref(false),
     markdownCommentsRef: ref([]),
     markdownSourceLineOffsetRef: ref(0),
+    readOnly: false,
     flushPendingSerialization: vi.fn(),
     openSearchRef: ref(vi.fn()),
     openAnnotationPopoverRef: ref(vi.fn()),
@@ -104,6 +105,30 @@ describe('createRichMarkdownEditorConfig', () => {
     const config = createRichMarkdownEditorConfig(createConfigParams())
 
     expect(getSpellcheckAttribute(config)).toBe('true')
+  })
+
+  it('renders the editor non-editable in read-only mode', () => {
+    const config = createRichMarkdownEditorConfig(createConfigParams({ readOnly: true }))
+
+    expect(config.editable).toBe(false)
+  })
+
+  it('does not mark the file dirty or schedule serialization in read-only mode', () => {
+    const onDirtyStateHint = vi.fn()
+    const params = createConfigParams({ readOnly: true })
+    const config = createRichMarkdownEditorConfig({
+      ...params,
+      onDirtyStateHintRef: { current: onDirtyStateHint }
+    })
+
+    // Why: null editor is safe — the read-only guard returns before any editor access.
+    config.onUpdate?.({
+      editor: null as unknown as Editor,
+      transaction: {} as never,
+      appendedTransactions: []
+    })
+
+    expect(onDirtyStateHint).not.toHaveBeenCalled()
   })
 
   it('flushes pending serialization when the rich editor blurs', () => {

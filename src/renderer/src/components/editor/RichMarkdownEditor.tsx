@@ -53,6 +53,7 @@ export default function RichMarkdownEditor({
   markdownAnnotationFilePath,
   markdownSourceLineOffset = 0,
   markdownReviewContent = content,
+  readOnly = false,
   headerSlot
 }: RichMarkdownEditorProps): React.JSX.Element {
   const rootRef = useRef<HTMLDivElement | null>(null)
@@ -228,6 +229,7 @@ export default function RichMarkdownEditor({
     isApplyingProgrammaticUpdateRef,
     markdownCommentsRef: review.markdownCommentsRef,
     markdownSourceLineOffsetRef: review.markdownSourceLineOffsetRef,
+    readOnly,
     flushPendingSerialization,
     openSearchRef,
     openAnnotationPopoverRef,
@@ -344,7 +346,8 @@ export default function RichMarkdownEditor({
   const { openSearch, searchState, searchActions } = useRichMarkdownSearch({
     editor,
     rootRef,
-    scrollContainerRef
+    scrollContainerRef,
+    readOnly
   })
   openSearchRef.current = openSearch
 
@@ -352,6 +355,7 @@ export default function RichMarkdownEditor({
     <RichMarkdownEditorSurface
       editor={editor}
       editorFontZoomLevel={editorFontZoomLevel}
+      readOnly={readOnly}
       rootElement={rootRef.current}
       rootRef={setRootElement}
       scrollContainerRef={scrollContainerRef}

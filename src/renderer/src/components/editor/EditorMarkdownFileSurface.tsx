@@ -134,6 +134,57 @@ export function EditorMarkdownFileSurface({
       </div>
     )
   }
+  if (renderMode === 'rich-editor-readonly') {
+    const frontMatter = extractFrontMatter(currentContent)
+    const editorContent = frontMatter ? frontMatter.body : currentContent
+
+    return (
+      <div className="flex h-full min-h-0 flex-col">
+        <div className="border-b border-border/60 bg-amber-500/10 px-3 py-2 text-xs text-amber-950 dark:text-amber-100">
+          {richModeUnsupportedMessage}{' '}
+          <span className="opacity-80">
+            {translate(
+              'editor.richMarkdown.readOnlyView',
+              'Showing read-only rich view — switch to source mode to edit.'
+            )}
+          </span>
+        </div>
+        <div className="min-h-0 flex-1">
+          <RichMarkdownErrorBoundary key={viewStateScopeId} fileId={activeFile.id}>
+            <RichMarkdownEditor
+              fileId={activeFile.id}
+              viewStateId={viewStateScopeId}
+              content={editorContent}
+              filePath={activeFile.filePath}
+              worktreeId={activeFile.worktreeId}
+              externalSshTargetId={activeFile.externalSshTargetId}
+              runtimeEnvironmentId={activeFile.runtimeEnvironmentId}
+              scrollCacheKey={`${editorViewStateKey}:rich`}
+              onContentChange={handleContentChange}
+              onDirtyStateHint={handleDirtyStateHint}
+              onSave={markdownDocuments.mdSave}
+              onOpenDocLink={markdownDocuments.onOpenDocLink}
+              markdownDocuments={markdownDocuments.markdownDocuments}
+              showTableOfContents={showMarkdownTableOfContents}
+              onCloseTableOfContents={onCloseMarkdownTableOfContents}
+              markdownAnnotationsEnabled={markdownAnnotationsEnabled}
+              markdownAnnotationFilePath={activeFile.relativePath}
+              markdownSourceLineOffset={
+                frontMatter ? getMarkdownSourceLineOffset(frontMatter.raw) : 0
+              }
+              markdownReviewContent={currentContent}
+              readOnly
+              headerSlot={
+                frontMatter && showMarkdownFrontmatter ? (
+                  <FrontMatterBanner raw={frontMatter.raw} />
+                ) : null
+              }
+            />
+          </RichMarkdownErrorBoundary>
+        </div>
+      </div>
+    )
+  }
   if (renderMode === 'preview') {
     const shouldExplainRichFallback = mdViewMode === 'rich' && richModeUnsupportedMessage
     return (

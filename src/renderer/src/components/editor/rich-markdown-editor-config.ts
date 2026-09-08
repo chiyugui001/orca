@@ -76,6 +76,7 @@ export type EditorConfigParams = {
   isApplyingProgrammaticUpdateRef: MutableRefObject<boolean>
   markdownCommentsRef: MutableRefObject<DiffComment[]>
   markdownSourceLineOffsetRef: MutableRefObject<number>
+  readOnly: boolean
   flushPendingSerialization: () => void
   openSearchRef: MutableRefObject<() => void>
   openAnnotationPopoverRef: MutableRefObject<(requireLiveSelection?: boolean) => boolean>
@@ -131,6 +132,7 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
 
   return {
     immediatelyRender: false,
+    editable: !params.readOnly,
     content: encodeRawMarkdownHtmlForRichEditor(content, codec, { htmlSuperscriptLinks: true }),
     contentType: 'markdown' as const,
     editorProps: {
@@ -219,7 +221,9 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       baseCanonicalRef.current = nextEditor.getMarkdown()
       isInitializingRef.current = false
       cancelAutoFocusRef.current?.()
-      cancelAutoFocusRef.current = autoFocusRichEditor(nextEditor, rootRef.current)
+      cancelAutoFocusRef.current = params.readOnly
+        ? null
+        : autoFocusRichEditor(nextEditor, rootRef.current)
     },
     onBeforeCreate: ({ editor: nextEditor }) => {
       setRichMarkdownImageResolverContext(
@@ -235,6 +239,12 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       )
     },
     onUpdate: ({ editor: nextEditor }) => {
+      // Why: read-only documents never serialize and never open editing menus
+      // (slash/doc-link) — editable:false blocks user input, and this guard
+      // keeps maintenance transactions from marking the file dirty.
+      if (params.readOnly) {
+        return
+      }
       syncSlashMenu(nextEditor, rootRef.current, setSlashMenu)
       syncDocLinkMenu(nextEditor, rootRef.current, setDocLinkMenu)
       if (!isSingleEmptyTopLevelOrderedList(nextEditor)) {
@@ -269,8 +279,16 @@ export function createRichMarkdownEditorConfig(params: EditorConfigParams): UseE
       syncDocLinkMenu(nextEditor, rootRef.current, setDocLinkMenu)
       syncAnnotationTarget(nextEditor)
       setIsEditingLink(false)
+      // Why: read-only docs never offer the link-edit bubble — its save/remove
+      // actions mutate the view with no serialization path back to disk.
       setLinkBubble(
-        getRichMarkdownSelectionLinkBubble(nextEditor, rootRef.current, htmlSuperscriptLinkContext)
+        params.readOnly
+          ? null
+          : getRichMarkdownSelectionLinkBubble(
+              nextEditor,
+              rootRef.current,
+              htmlSuperscriptLinkContext
+            )
       )
     }
   }

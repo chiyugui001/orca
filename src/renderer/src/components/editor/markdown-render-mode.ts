@@ -1,6 +1,6 @@
 import type { MarkdownViewMode } from '@/store/slices/editor'
 
-export type MarkdownRenderMode = 'source' | 'rich-editor' | 'preview'
+export type MarkdownRenderMode = 'source' | 'rich-editor' | 'rich-editor-readonly' | 'preview'
 
 export type MarkdownRenderState = {
   renderMode: MarkdownRenderMode
@@ -39,5 +39,9 @@ export function getMarkdownRenderMode({
   // that Tiptap owns the document. Now that Orca has a dedicated preview tab,
   // unsafe rich documents should stay editable in source mode here instead of
   // silently turning the current editor tab into a read-only preview surface.
-  return hasRichModeUnsupportedContent ? 'source' : 'rich-editor'
+  // Fork divergence (upstream returns 'source'): the rich editor's annotation
+  // experience is the point of rich view, so unsafe documents render read-only
+  // in Tiptap instead — the serialization risk the gate protects against only
+  // exists while the document is editable.
+  return hasRichModeUnsupportedContent ? 'rich-editor-readonly' : 'rich-editor'
 }

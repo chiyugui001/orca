@@ -7,6 +7,11 @@
       "webDescription": "重试 Web 客户端或重新连接到配对的运行时。"
     }
   },
+  "editor": {
+    "richMarkdown": {
+      "readOnlyView": "当前为只读富文本视图——如需编辑请切换到源码模式。"
+    }
+  },
   "githubChecks": {
     "retrying": "正在重试..."
   },

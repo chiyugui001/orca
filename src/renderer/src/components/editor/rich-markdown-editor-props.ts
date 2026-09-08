@@ -21,6 +21,9 @@ export type RichMarkdownEditorProps = {
   markdownAnnotationFilePath?: string
   markdownSourceLineOffset?: number
   markdownReviewContent?: string
+  // Why: documents with syntax the serializer can't round-trip render in Tiptap
+  // read-only — display and annotations stay available, serialization never runs.
+  readOnly?: boolean
   // Why: front-matter is stripped from the rich editor's content but we still
   // want it visible to the user. It renders between the toolbar and the editor
   // surface so the formatting toolbar stays at the top of the pane.

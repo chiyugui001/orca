@@ -61,6 +61,7 @@ function createParams(content = ''): EditorConfigParams {
     isApplyingProgrammaticUpdateRef: { current: false },
     markdownCommentsRef: { current: [] },
     markdownSourceLineOffsetRef: { current: 0 },
+    readOnly: false,
     flushPendingSerialization: vi.fn(),
     openSearchRef: { current: vi.fn() },
     openAnnotationPopoverRef: { current: vi.fn() },
