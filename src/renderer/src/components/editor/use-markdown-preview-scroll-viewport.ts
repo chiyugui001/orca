@@ -4,10 +4,12 @@ import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundatio
 
 export function useMarkdownPreviewScrollViewport({
   foundation,
-  scrollCacheKey
+  scrollCacheKey,
+  hasInitialAnchor
 }: {
   foundation: MarkdownPreviewFoundation
   scrollCacheKey: string
+  hasInitialAnchor: boolean
 }): void {
   const { rootRef, renderedContent } = foundation
 
@@ -43,6 +45,12 @@ export function useMarkdownPreviewScrollViewport({
   }, [rootRef, scrollCacheKey])
 
   useLayoutEffect(() => {
+    // Why: an anchored open owns initial positioning; a concurrent cached-
+    // scrollTop restore would fight the anchor reveal rAF loop and could
+    // strand the preview at the stale position instead of the heading.
+    if (hasInitialAnchor) {
+      return
+    }
     const container = rootRef.current
     const targetScrollTop = scrollTopCache.get(scrollCacheKey)
     if (!container || targetScrollTop === undefined) {
@@ -69,5 +77,5 @@ export function useMarkdownPreviewScrollViewport({
 
     tryRestore()
     return () => window.cancelAnimationFrame(frameId)
-  }, [rootRef, scrollCacheKey, renderedContent])
+  }, [rootRef, scrollCacheKey, renderedContent, hasInitialAnchor])
 }

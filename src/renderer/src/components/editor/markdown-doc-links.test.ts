@@ -7,6 +7,7 @@ import {
   createMarkdownDocumentIndex,
   createMarkdownDocLinkHref,
   getMarkdownDocLinkAnchor,
+  parseMarkdownDocLink,
   parseMarkdownDocLinkHref,
   remarkMarkdownDocLinks,
   resolveMarkdownDocLink,
@@ -177,6 +178,13 @@ describe('getMarkdownDocLinkAnchor', () => {
     expect(getMarkdownDocLinkAnchor('docs/setup-guide#install-steps')).toBe('install-steps')
     expect(getMarkdownDocLinkAnchor('docs/setup-guide')).toBeNull()
   })
+
+  it('keeps the anchor correct for table-cell links whose pipe is backslash-escaped', () => {
+    const target = parseMarkdownDocLink(
+      'docs/帧格式与命令总表#3.2.1 TYPE 00：查询协议版本\\|查询协议版本'
+    )?.target
+    expect(getMarkdownDocLinkAnchor(target ?? '')).toBe('321-type-00查询协议版本')
+  })
 })
 
 describe('remarkMarkdownDocLinks', () => {
@@ -212,7 +220,11 @@ describe('remarkMarkdownDocLinks', () => {
       children: [
         { type: 'text', value: 'See [[setup-guide]]' },
         { type: 'inlineCode', value: '[[code]]' },
-        { type: 'link', url: '[[url]]', children: [{ type: 'text', value: '[[label]]' }] },
+        {
+          type: 'link',
+          url: '[[url]]',
+          children: [{ type: 'text', value: '[[label]]' }]
+        },
         { type: 'image', url: '[[image]]' }
       ]
     }
@@ -227,7 +239,10 @@ describe('remarkMarkdownDocLinks', () => {
       type: 'link',
       url: '#orca-doc-link=setup-guide'
     })
-    expect(tree.children?.[2]).toEqual({ type: 'inlineCode', value: '[[code]]' })
+    expect(tree.children?.[2]).toEqual({
+      type: 'inlineCode',
+      value: '[[code]]'
+    })
     expect(tree.children?.[3]).toEqual({
       type: 'link',
       url: '[[url]]',

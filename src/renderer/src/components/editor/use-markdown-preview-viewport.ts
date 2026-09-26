@@ -1,10 +1,6 @@
-import { useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
+import { useCallback, useEffect, type MutableRefObject } from 'react'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { resolveMarkdownPreviewAddReviewNoteKey } from './markdown-preview-annotation-shortcut'
-import {
-  decodeMarkdownPreviewAnchor,
-  getMarkdownPreviewAnchorScrollTop
-} from './markdown-preview-anchor-navigation'
 import { cancelMarkdownPreviewEditorRevealFrames } from './markdown-preview-editor-reveal'
 import {
   applyMarkdownPreviewSearchHighlights,
@@ -13,6 +9,7 @@ import {
   setActiveMarkdownPreviewSearchMatch
 } from './markdown-preview-search'
 import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundation'
+import { useMarkdownPreviewAnchorReveal } from './use-markdown-preview-anchor-reveal'
 import { useMarkdownPreviewScrollViewport } from './use-markdown-preview-scroll-viewport'
 
 function clearMarkdownPreviewTimeout(timeoutRef: MutableRefObject<number | null>): void {
@@ -42,7 +39,6 @@ export function useMarkdownPreviewViewport({
     inputRef,
     matchesRef,
     searchInstanceRef,
-    lastAppliedInitialAnchorRef,
     pendingEditorRevealFrameIdsRef,
     isSearchOpen,
     setIsSearchOpen,
@@ -64,7 +60,11 @@ export function useMarkdownPreviewViewport({
     renderedContent
   } = foundation
 
-  useMarkdownPreviewScrollViewport({ foundation, scrollCacheKey })
+  useMarkdownPreviewScrollViewport({
+    foundation,
+    scrollCacheKey,
+    hasInitialAnchor: initialAnchor !== null
+  })
 
   const moveToMatch = useCallback(
     (direction: 1 | -1) => {
@@ -131,32 +131,7 @@ export function useMarkdownPreviewViewport({
     [cleanupPreviewSurfaceTimers, reviewNotesCopyMountedRef, rootRef]
   )
 
-  const scrollToAnchor = useCallback(
-    (rawAnchor: string): boolean => {
-      const container = rootRef.current
-      const body = bodyRef.current
-      if (!container || !body) {
-        return false
-      }
-
-      const decodedAnchor = decodeMarkdownPreviewAnchor(rawAnchor)
-      let target: HTMLElement | null = null
-      for (const candidate of body.querySelectorAll<HTMLElement>('[id]')) {
-        if (candidate.id === decodedAnchor) {
-          target = candidate
-          break
-        }
-      }
-      if (!target) {
-        return false
-      }
-
-      container.scrollTo({ top: getMarkdownPreviewAnchorScrollTop(container, target) })
-      target.focus({ preventScroll: true })
-      return true
-    },
-    [bodyRef, rootRef]
-  )
+  const scrollToAnchor = useMarkdownPreviewAnchorReveal({ foundation, initialAnchor, content })
 
   const navigateToTableOfContentsItem = useCallback(
     (id: string): void => {
@@ -208,30 +183,6 @@ export function useMarkdownPreviewViewport({
       activeMatchIndex
     )
   }, [activeMatchIndex, matchCount, matchesRef, searchInstanceRef, searchRevision])
-
-  useLayoutEffect(() => {
-    if (!initialAnchor || initialAnchor === lastAppliedInitialAnchorRef.current) {
-      return
-    }
-
-    let frameId = 0
-    let attempts = 0
-
-    const tryRevealAnchor = (): void => {
-      if (scrollToAnchor(initialAnchor)) {
-        lastAppliedInitialAnchorRef.current = initialAnchor
-        return
-      }
-
-      attempts += 1
-      if (attempts < 30) {
-        frameId = window.requestAnimationFrame(tryRevealAnchor)
-      }
-    }
-
-    tryRevealAnchor()
-    return () => window.cancelAnimationFrame(frameId)
-  }, [content, initialAnchor, lastAppliedInitialAnchorRef, scrollToAnchor])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {

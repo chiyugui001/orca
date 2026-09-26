@@ -24,6 +24,8 @@ import {
   findMarkdownPreviewTargetWorktree
 } from './markdown-preview-source-routing'
 import { handleMarkdownPreviewSystemLinkClick } from './markdown-preview-system-link-action'
+import { decodeMarkdownPreviewAnchor } from './markdown-preview-anchor-navigation'
+import { slugMarkdownHeading } from './markdown-heading-slug'
 import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundation'
 import type { MarkdownPreviewViewport } from './use-markdown-preview-viewport'
 
@@ -45,6 +47,13 @@ export type MarkdownPreviewLinkContext = Pick<
   | 'setPendingEditorReveal'
 > &
   Pick<MarkdownPreviewViewport, 'scrollToAnchor'>
+
+// Why: link fragments carry heading text (Obsidian style) or an existing slug;
+// both must land on the rehype-slug element id, which slugMarkdownHeading
+// yields idempotently for already-slugged fragments.
+function toMarkdownPreviewHeadingAnchor(hash: string): string {
+  return slugMarkdownHeading(decodeMarkdownPreviewAnchor(hash.slice(1)).trim())
+}
 
 export async function handleMarkdownPreviewLinkClick({
   event,
@@ -121,7 +130,7 @@ export async function handleMarkdownPreviewLinkClick({
 
   // Why: same-file anchors need no ownership resolution.
   if (absolutePath === filePath && target.hash && !lineTarget) {
-    void scrollToAnchor(target.hash.slice(1))
+    void scrollToAnchor(toMarkdownPreviewHeadingAnchor(target.hash))
     return
   }
 
@@ -247,7 +256,9 @@ export async function handleMarkdownPreviewLinkClick({
         runtimeEnvironmentId: resolvedSourceRuntimeEnvironmentId,
         language
       },
-      { anchor: target.hash ? target.hash.slice(1) : null }
+      {
+        anchor: target.hash ? toMarkdownPreviewHeadingAnchor(target.hash) : null
+      }
     )
     return
   }
