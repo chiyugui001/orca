@@ -41,15 +41,14 @@ export function useMarkdownPreviewReviewActions({
     sourceRelativePath,
     canShowReviewTools
   } = foundation
-  const { clearReviewNotesCopiedResetTimer, clearCopiedReviewNoteResetTimer } = viewport
+  const { clearReviewNotesCopiedResetTimer, clearCopiedReviewNoteResetTimer, scrollToSourceLine } =
+    viewport
   const markdownCommentsRef = useRef(markdownComments)
   const activeReviewCommentIdRef = useRef(activeReviewCommentId)
   markdownCommentsRef.current = markdownComments
   activeReviewCommentIdRef.current = activeReviewCommentId
-  const {
-    registerMarkdownReviewNavigation,
-    clearMarkdownReviewNavigation
-  } = useMarkdownReviewNavigation()
+  const { registerMarkdownReviewNavigation, clearMarkdownReviewNavigation } =
+    useMarkdownReviewNavigation()
 
   const handleCopyMarkdownReviewNotes = useCallback(async (): Promise<void> => {
     if (markdownReviewNotes.length === 0) {
@@ -162,6 +161,9 @@ export function useMarkdownPreviewReviewActions({
   const scrollToReviewNote = useCallback(
     (comment: DiffComment): void => {
       setActiveReviewCommentId(comment.id)
+      if (scrollToSourceLine(comment.lineNumber)) {
+        return
+      }
       const root = rootRef.current
       if (!root) {
         return
@@ -178,7 +180,7 @@ export function useMarkdownPreviewReviewActions({
       }
       target?.scrollIntoView({ behavior: 'smooth', block: 'center' })
     },
-    [rootRef, setActiveReviewCommentId]
+    [rootRef, scrollToSourceLine, setActiveReviewCommentId]
   )
 
   const getMarkdownCommentsForRange = useCallback(

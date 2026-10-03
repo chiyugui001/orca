@@ -5,9 +5,11 @@ import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundatio
 export function useMarkdownPreviewScrollViewport({
   foundation,
   scrollCacheKey,
-  hasInitialAnchor
+  hasInitialAnchor,
+  restorePixels = true
 }: {
   foundation: MarkdownPreviewFoundation
+  restorePixels?: boolean
   scrollCacheKey: string
   hasInitialAnchor: boolean
 }): void {
@@ -52,6 +54,9 @@ export function useMarkdownPreviewScrollViewport({
       return
     }
     const container = rootRef.current
+    if (!restorePixels) {
+      return
+    }
     const targetScrollTop = scrollTopCache.get(scrollCacheKey)
     if (!container || targetScrollTop === undefined) {
       return
@@ -77,5 +82,5 @@ export function useMarkdownPreviewScrollViewport({
 
     tryRestore()
     return () => window.cancelAnimationFrame(frameId)
-  }, [rootRef, scrollCacheKey, renderedContent, hasInitialAnchor])
+  }, [rootRef, scrollCacheKey, renderedContent, hasInitialAnchor, restorePixels])
 }

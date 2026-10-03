@@ -4,6 +4,7 @@ import { getDiffCommentLineLabel } from '@/lib/diff-comment-compat'
 import { formatDiffComments } from '@/lib/diff-comments-format'
 import { TooltipProvider } from '@/components/ui/tooltip'
 import { DiffCommentCard } from './DiffCommentCard'
+import { DiffCommentDraftCard } from './DiffCommentDraftCard'
 import type { DecoratedDiffComment } from './decorated-diff-comment'
 import { NotesSendMenu, type NotesSendMenuScope } from '../editor/NotesSendMenu'
 import { translate } from '@/i18n/i18n'
@@ -115,6 +116,49 @@ export function renderDiffCommentZoneCard(
             />
           ) : null
         }
+      />
+    </TooltipProvider>
+  )
+}
+
+export type DiffCommentDraftCardContext = {
+  placeholder?: string
+  submitLabel?: string
+  submittingLabel?: string
+  initialBody?: string
+  onBodyChange?: (body: string) => void
+  resizeZone: () => void
+  onCancel: () => void
+  onSubmit: (body: string) => Promise<boolean>
+}
+
+export function renderDiffCommentDraftCard(
+  root: Root,
+  draft: { lineNumber: number; startLine?: number },
+  {
+    placeholder,
+    submitLabel,
+    submittingLabel,
+    initialBody,
+    onBodyChange,
+    resizeZone,
+    onCancel,
+    onSubmit
+  }: DiffCommentDraftCardContext
+): void {
+  root.render(
+    <TooltipProvider delayDuration={400}>
+      <DiffCommentDraftCard
+        lineNumber={draft.lineNumber}
+        startLine={draft.startLine}
+        placeholder={placeholder}
+        submitLabel={submitLabel}
+        submittingLabel={submittingLabel}
+        initialBody={initialBody}
+        onBodyChange={onBodyChange}
+        onCancel={onCancel}
+        onSubmit={onSubmit}
+        onContentResize={resizeZone}
       />
     </TooltipProvider>
   )

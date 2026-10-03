@@ -13,7 +13,6 @@ import { DiffNavigationProvider } from './diff-navigation-context'
 import { MarkdownReviewNavigationProvider } from './markdown-preview-review-navigation-context'
 import { canUseChangesModeForFile } from './editor-panel-file-mode'
 import { getEditorPanelRenderModel } from './editor-panel-render-model'
-import { useClosedEditorTabCleanup } from './useClosedEditorTabCleanup'
 import { useEditorCmdSaveRequest } from './useEditorCmdSaveRequest'
 import { useEditorPanelContentState } from './useEditorPanelContentState'
 import { useMarkdownPreviewShortcut } from './useMarkdownPreviewShortcut'
@@ -27,6 +26,7 @@ import {
 import { createEditorPanelDraftSelector } from './editor-panel-draft-selector'
 import { createCurrentMarkdownArtifactRequest } from './markdown-artifact-upload'
 import { useEditorPanelSave } from './useEditorPanelSave'
+import { isMarkdownReviewNotesEnabled } from '@/lib/markdown-review-notes-setting'
 
 function EditorPanelInner({
   activeFileId: activeFileIdProp,
@@ -82,6 +82,7 @@ function EditorPanelInner({
   )
   const editorDrafts = useAppStore(editorDraftSelector)
   const settings = useAppStore((s) => s.settings)
+  const markdownReviewNotesEnabled = isMarkdownReviewNotesEnabled(settings)
   const panelRef = useRef<HTMLDivElement>(null)
   const [copiedPathToast, setCopiedPathToast] = useState<{ fileId: string; token: number } | null>(
     null
@@ -143,7 +144,6 @@ function EditorPanelInner({
     handleRenameConfirm
   } = useUntitledFileRename({ openFiles, clearUntitled })
 
-  useClosedEditorTabCleanup(openFiles)
   useMarkdownPreviewShortcut({ activeFile, panelRef, openMarkdownPreview })
 
   const handleContentChangeForFile = useEditorContentChangeHandler({ fileContents, diffContents })
@@ -385,7 +385,7 @@ function EditorPanelInner({
           }
           onCloseRenameDialog={closeRenameDialog}
           onRenameConfirm={handleRenameConfirm}
-          markdownAnnotationsEnabled={markdownAnnotationsEnabled}
+          markdownAnnotationsEnabled={markdownAnnotationsEnabled && markdownReviewNotesEnabled}
         />
       </MarkdownReviewNavigationProvider>
     </DiffNavigationProvider>

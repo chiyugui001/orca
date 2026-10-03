@@ -1,7 +1,8 @@
 import { defaultSchema } from 'rehype-sanitize'
+import { normalizeDetailsOpeningTag } from './details-markdown-html'
 import { getRichMarkdownRoundTripOutput } from './markdown-round-trip'
 import { extractFrontMatter } from './markdown-frontmatter'
-import { exceedsMarkdownRichModeSizeLimit } from './markdown-rich-size-limit'
+import { canRenderMarkdownAtSize } from './markdown-rich-size-limit'
 import { translate } from '@/i18n/i18n'
 
 export type MarkdownRichModeUnsupportedReason =
@@ -48,7 +49,7 @@ const UNSUPPORTED_PATTERNS: UnsupportedMatch[] = [
     // Why: the rich editor preserves common embedded markup via placeholder
     // tokens before parsing, but any HTML shape that still fails round-trip
     // must fall back instead of risking silent source corruption.
-    pattern: /<\/?[A-Za-z][\w.:-]*(?:\s[^<>]*)?\/?>|<!--[\s\S]*?-->/
+    pattern: /<\/?[A-Za-z][\w.:-]*(?:\s[^<>]*)?\/?>/
   },
   {
     reason: 'reference-links',
@@ -143,7 +144,7 @@ export function getMarkdownRichModeEligibilityDecision({
   sizeOverridden: boolean
 }): MarkdownRichModeEligibilityDecision {
   return {
-    exceedsSizeLimit: !sizeOverridden && exceedsMarkdownRichModeSizeLimit(content),
+    exceedsSizeLimit: !canRenderMarkdownAtSize(content, sizeOverridden),
     unsupportedReason: getMarkdownRichModeUnsupportedReason(content)
   }
 }
@@ -160,6 +161,11 @@ export function getMarkdownRichModeEligibility(params: {
 }
 
 function hasHtmlOrJsx(content: string, pattern: RegExp): boolean {
+  // A missing closer after the first opener rules out every later opener.
+  const commentStart = content.indexOf('<!--')
+  if (commentStart !== -1 && content.includes('-->', commentStart + 4)) {
+    return true
+  }
   for (const match of content.matchAll(new RegExp(pattern, 'g'))) {
     if (isHtmlOrJsxFragment(match[0])) {
       return true
@@ -169,7 +175,7 @@ function hasHtmlOrJsx(content: string, pattern: RegExp): boolean {
 }
 
 function isHtmlOrJsxFragment(fragment: string): boolean {
-  if (fragment.startsWith('<!--') || fragment.startsWith('</')) {
+  if (fragment.startsWith('</')) {
     return true
   }
 
@@ -188,10 +194,9 @@ function stripMarkdownCode(content: string): string {
   let activeFence: '`' | '~' | null = null
   let lineStart = 0
 
-  for (let index = 0; index <= content.length; index += 1) {
-    if (index < content.length && content.charCodeAt(index) !== 10) {
-      continue
-    }
+  while (lineStart <= content.length) {
+    const newlineIndex = content.indexOf('\n', lineStart)
+    const index = newlineIndex === -1 ? content.length : newlineIndex
     const lineEnd = index > lineStart && content.charCodeAt(index - 1) === 13 ? index - 1 : index
     const line = content.slice(lineStart, lineEnd)
     const fenceMatch = line.match(/^\s*(`{3,}|~{3,})/)
@@ -219,11 +224,18 @@ function preservesEmbeddedHtml(contentWithoutCode: string, roundTripOutput: stri
   const haystack = roundTripOutput.replace(/\r\n/g, '\n')
   let searchIndex = 0
   return forEachEmbeddedHtmlFragment(contentWithoutCode, (fragment) => {
-    const foundIndex = haystack.indexOf(fragment, searchIndex)
+    const normalized = normalizeDetailsOpeningTag(fragment)
+    const exactIndex = haystack.indexOf(fragment, searchIndex)
+    // Details serialization adds Orca's class and canonicalizes supported attributes.
+    const normalizedIndex =
+      normalized === fragment ? -1 : haystack.indexOf(normalized, searchIndex)
+    const useNormalized =
+      normalizedIndex !== -1 && (exactIndex === -1 || normalizedIndex < exactIndex)
+    const foundIndex = useNormalized ? normalizedIndex : exactIndex
     if (foundIndex === -1) {
       return false
     }
-    searchIndex = foundIndex + fragment.length
+    searchIndex = foundIndex + (useNormalized ? normalized.length : fragment.length)
     return true
   })
 }
@@ -232,6 +244,7 @@ function forEachEmbeddedHtmlFragment(
   content: string,
   visit: (fragment: string) => boolean
 ): boolean {
+  const lastCommentClose = content.lastIndexOf('-->')
   for (let index = 0; index < content.length; index++) {
     if (content.charCodeAt(index) !== 60) {
       continue
@@ -239,7 +252,7 @@ function forEachEmbeddedHtmlFragment(
 
     let fragmentEnd: number | null = null
     if (content.startsWith('<!--', index)) {
-      const commentEnd = content.indexOf('-->', index + 4)
+      const commentEnd = index + 4 <= lastCommentClose ? content.indexOf('-->', index + 4) : -1
       fragmentEnd = commentEnd === -1 ? null : commentEnd + 3
     } else {
       fragmentEnd = getHtmlTagEnd(content, index)

@@ -34,6 +34,7 @@ export type ActiveAgentNotesSendFailureCode =
   | 'submit-send-error'
   | 'runtime-unverifiable'
   | 'runtime-timeout'
+  | 'session-outbox-unsaved'
 
 export type ActiveAgentNotesSendResult = {
   status: ActiveAgentNotesSendStatus
@@ -73,7 +74,7 @@ export function activeAgentNotesSendFailureMessage(
       message = `The ${target} agent was not ready for input yet.`
       break
     case 'not-writable':
-      message = `The ${target} terminal did not accept the notes.`
+      message = `The ${target} agent did not accept the notes.`
       break
     case 'partial-submit-failed':
       message = options.explicitTarget

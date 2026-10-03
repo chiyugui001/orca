@@ -1,7 +1,9 @@
 import React from 'react'
+import { toast } from 'sonner'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { AgentStatusEntry, AgentStatusState } from '../../../../shared/agent-status-types'
 import type { TuiAgent } from '../../../../shared/tui-agent'
+import type { NotesSendAgentTarget } from '@/lib/notes-send-agent-targets'
 import { makePaneKey } from '../../../../shared/stable-pane-id'
 import type { DashboardAgentRow as DashboardAgentRowData } from '@/components/dashboard/useDashboardData'
 import { ReviewNotesSendMenuContent } from './ReviewNotesSendMenuContent'
@@ -24,22 +26,12 @@ const hookRuntime = vi.hoisted(() => ({
 
 const harness = vi.hoisted(() => ({
   storeState: {} as Record<string, unknown>,
-  sendNotesToActiveAgentSession: vi.fn(),
+  sendMessageToAgent: vi.fn(),
   wakeSleepingAgentSessionAndSendNotes: vi.fn(),
   track: vi.fn(),
   toastMessage: vi.fn(),
   worktreeAgentRows: [] as DashboardAgentRowData[],
-  noteTargets: [] as {
-    paneKey: string
-    tabId: string
-    leafId: string
-    agentType: TuiAgent
-    customTitle?: string
-    sessionTitle?: string
-    tabTitle: string
-    status: 'eligible' | 'disabled'
-    disabledReason?: string
-  }[],
+  noteTargets: new Array<NotesSendAgentTarget>(),
   now: 600_000
 }))
 
@@ -93,8 +85,11 @@ vi.mock('@/lib/active-agent-note-send', () => ({
   activeAgentNotesSendFailureMessage: (
     status: string,
     options: { explicitTarget?: boolean } = {}
-  ) => (options.explicitTarget ? `selected:${status}` : status),
-  sendNotesToActiveAgentSession: harness.sendNotesToActiveAgentSession
+  ) => (options.explicitTarget ? `selected:${status}` : status)
+}))
+
+vi.mock('@/lib/agent-message-send', () => ({
+  sendMessageToAgent: harness.sendMessageToAgent
 }))
 
 vi.mock('@/lib/notes-send-agent-targets', () => ({
@@ -133,6 +128,10 @@ vi.mock('@/components/AgentStateDot', () => ({
         return 'Blocked'
       case 'waiting':
         return 'Waiting for input'
+      case 'failed':
+        return 'Failed'
+      case 'interrupted':
+        return 'Interrupted'
       case 'done':
         return 'Done'
       case 'idle':
@@ -171,15 +170,16 @@ vi.mock('@/lib/focus-terminal-tab-surface', () => ({
   focusTerminalTabSurface: vi.fn()
 }))
 
-vi.mock('sonner', () => ({
-  toast: {
-    dismiss: vi.fn(),
-    error: vi.fn(),
-    loading: vi.fn(() => 'toast-id'),
-    message: harness.toastMessage,
-    success: vi.fn()
+// Why: real sonner state, so tests see which toast type a settled toast ends up with.
+vi.mock('sonner', async () => {
+  const actual = await vi.importActual<typeof import('sonner')>('sonner') // eslint-disable-line @typescript-eslint/consistent-type-imports -- vi.importActual requires inline import()
+  const realMessage = actual.toast.message
+  const message: typeof realMessage = (...args) => {
+    harness.toastMessage(...args)
+    return realMessage(...args)
   }
-}))
+  return { ...actual, toast: Object.assign(actual.toast, { message }) }
+})
 
 function agentEntry(
   paneKey: string,
@@ -352,8 +352,8 @@ describe('ReviewNotesSendMenuContent', () => {
     hookRuntime.states = []
     hookRuntime.index = 0
     hookRuntime.cleanups = []
-    harness.sendNotesToActiveAgentSession.mockReset()
-    harness.sendNotesToActiveAgentSession.mockResolvedValue({ status: 'sent' })
+    harness.sendMessageToAgent.mockReset()
+    harness.sendMessageToAgent.mockResolvedValue({ status: 'sent' })
     harness.wakeSleepingAgentSessionAndSendNotes.mockReset()
     harness.wakeSleepingAgentSessionAndSendNotes.mockResolvedValue({ status: 'sent' })
     harness.track.mockReset()
@@ -382,7 +382,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -390,7 +390,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: makePaneKey(TAB_B, LEAF_B),
         tabId: TAB_B,
-        leafId: LEAF_B,
+        messageTarget: { kind: 'terminal', tabId: TAB_B, leafId: LEAF_B },
         agentType: 'codex',
         tabTitle: 'Codex',
         status: 'eligible'
@@ -438,7 +438,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: paneKeyA,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'First session',
         status: 'eligible'
@@ -446,7 +446,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: paneKeyB,
         tabId: TAB_B,
-        leafId: LEAF_B,
+        messageTarget: { kind: 'terminal', tabId: TAB_B, leafId: LEAF_B },
         agentType: 'codex',
         tabTitle: 'Second session',
         status: 'eligible'
@@ -464,43 +464,77 @@ describe('ReviewNotesSendMenuContent', () => {
     expect(collectText(items[1])).toContain('Claude')
   })
 
-  it('uses the provider session title as the target label while retaining the agent type', () => {
-    const paneKey = makePaneKey(TAB_A, LEAF_A)
-    harness.noteTargets = [
-      {
-        paneKey,
-        tabId: TAB_A,
-        leafId: LEAF_A,
-        agentType: 'codex',
-        sessionTitle: 'Fix session picker labels',
-        tabTitle: 'Codex',
-        status: 'eligible'
-      }
-    ]
+  it('labels targets with the provider session title and prefers the user-defined title', () => {
+    const baseTarget = {
+      paneKey: makePaneKey(TAB_A, LEAF_A),
+      tabId: TAB_A,
+      messageTarget: { kind: 'terminal' as const, tabId: TAB_A, leafId: LEAF_A },
+      agentType: 'codex',
+      sessionTitle: 'Fix session picker labels',
+      tabTitle: 'Codex',
+      status: 'eligible' as const
+    }
+    harness.noteTargets = [baseTarget]
 
-    const item = findByType(render(), 'DropdownMenuItem')
+    expect(collectText(findByType(render(), 'DropdownMenuItem'))).toMatch(
+      /^Fix session picker labelsCodex/
+    )
 
-    expect(collectText(item)).toMatch(/^Fix session picker labelsCodex/)
+    harness.noteTargets = [{ ...baseTarget, customTitle: 'Review release notes' }]
+
+    expect(collectText(findByType(render(), 'DropdownMenuItem'))).toMatch(
+      /^Review release notesCodex/
+    )
   })
 
-  it('prefers the user-defined title over the provider session title', () => {
-    const paneKey = makePaneKey(TAB_A, LEAF_A)
+  it('shows a chat whose turn failed as failed, as its sidebar row does', () => {
+    const chatPaneKey = 'structured-agent-session-claude_1:chat'
+    const failedRow = agentRow({
+      paneKey: chatPaneKey,
+      tabId: 'structured-agent-session-claude_1',
+      title: 'Claude Chat',
+      agentType: 'claude'
+    })
+    failedRow.entry.mainAgent = { state: 'done', outcome: 'failure', stateStartedAt: harness.now }
+    harness.worktreeAgentRows = [failedRow]
     harness.noteTargets = [
       {
-        paneKey,
-        tabId: TAB_A,
-        leafId: LEAF_A,
-        agentType: 'codex',
-        customTitle: 'Review release notes',
-        sessionTitle: 'Fix session picker labels',
-        tabTitle: 'Codex',
+        paneKey: chatPaneKey,
+        tabId: 'structured-agent-session-claude_1',
+        messageTarget: { kind: 'structured-session', sessionId: 'claude_1' },
+        agentType: 'claude',
+        tabTitle: 'Claude Chat',
         status: 'eligible'
       }
     ]
 
     const item = findByType(render(), 'DropdownMenuItem')
 
-    expect(collectText(item)).toMatch(/^Review release notesCodex/)
+    expect(findByType(item, 'AgentStateDot').props.state).toBe('failed')
+    expect(collectText(item)).toContain('Failed')
+    expect(collectText(item)).not.toContain('Done')
+  })
+
+  it('shows a stopped terminal agent as interrupted, as its sidebar row does', () => {
+    const paneKey = makePaneKey(TAB_A, LEAF_A)
+    const stoppedRow = agentRow({ paneKey, tabId: TAB_A, title: 'Terminal 1', agentType: 'claude' })
+    stoppedRow.entry.interrupted = true
+    harness.worktreeAgentRows = [stoppedRow]
+    harness.noteTargets = [
+      {
+        paneKey,
+        tabId: TAB_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
+        agentType: 'claude',
+        tabTitle: 'Terminal 1',
+        status: 'eligible'
+      }
+    ]
+
+    const item = findByType(render(), 'DropdownMenuItem')
+
+    expect(findByType(item, 'AgentStateDot').props.state).toBe('interrupted')
+    expect(collectText(item)).toContain('Interrupted')
   })
 
   it('does not target title-detected rows skipped by target derivation', async () => {
@@ -525,7 +559,7 @@ describe('ReviewNotesSendMenuContent', () => {
     const items = findAllByType(tree, 'DropdownMenuItem')
 
     expect(items).toHaveLength(0)
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
   })
 
   it('disables title-detected dashboard rows when target derivation reports permission', () => {
@@ -549,7 +583,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey,
         tabId: TAB_B,
-        leafId: LEAF_B,
+        messageTarget: { kind: 'terminal', tabId: TAB_B, leafId: LEAF_B },
         agentType: 'codex',
         tabTitle: 'Codex',
         status: 'disabled',
@@ -565,7 +599,7 @@ describe('ReviewNotesSendMenuContent', () => {
     expect(item.props.title).toBe('Agent needs permission')
     expect(stateDot.props.title).toBeNull()
     ;(item.props.onSelect as () => void)()
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
   })
 
   it('does not offer a title-detected agent row after its live PTY has exited', () => {
@@ -606,7 +640,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: listedPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -619,7 +653,7 @@ describe('ReviewNotesSendMenuContent', () => {
     expect(items).toHaveLength(1)
     expect(collectText(items[0])).toContain('Claude')
     expect(collectText(tree)).not.toContain('Active agent session')
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
   })
 
   it('does not render an active agent fallback when the matching derived row is disabled', () => {
@@ -632,7 +666,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'codex',
         tabTitle: 'Codex',
         status: 'disabled',
@@ -659,7 +693,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -670,10 +704,10 @@ describe('ReviewNotesSendMenuContent', () => {
     ;(findByType(tree, 'DropdownMenuItem').props.onSelect as () => void)()
     await flushMicrotasks()
 
-    expect(harness.sendNotesToActiveAgentSession).toHaveBeenCalledWith({
+    expect(harness.sendMessageToAgent).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
       prompt: 'my notes',
-      noteTarget: { tabId: TAB_A, leafId: LEAF_A }
+      target: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A }
     })
     expect(onPromptDelivered).toHaveBeenCalledTimes(1)
     expect(harness.track).toHaveBeenCalledWith('agent_prompt_sent', {
@@ -683,10 +717,9 @@ describe('ReviewNotesSendMenuContent', () => {
     })
   })
 
-  it('keeps selected-target note failures undelivered and uses selected wording', async () => {
+  it('keeps selected-target send failures and thrown errors undelivered', async () => {
     const statusPaneKey = makePaneKey(TAB_A, LEAF_A)
     const onPromptDelivered = vi.fn()
-    harness.sendNotesToActiveAgentSession.mockResolvedValue({ status: 'not-ready' })
     setStore({
       tabsByWorktree: { 'wt-1': [tab(TAB_A, { title: 'Terminal 1' })] },
       terminalLayoutsByTabId: { [TAB_A]: leafLayout(LEAF_A, 'pty-a') }
@@ -695,42 +728,28 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
       }
     ]
 
-    const tree = render({ onPromptDelivered })
+    harness.sendMessageToAgent.mockResolvedValue({ status: 'not-ready' })
+    let tree = render({ onPromptDelivered })
     ;(findByType(tree, 'DropdownMenuItem').props.onSelect as () => void)()
     await flushMicrotasks()
 
     expect(onPromptDelivered).not.toHaveBeenCalled()
     expect(harness.track).not.toHaveBeenCalled()
-    expect(harness.toastMessage).toHaveBeenCalledWith('selected:not-ready')
-  })
+    // Why: a failure must replace the 'Sending notes...' loading toast, not keep its spinner.
+    const settled = toast
+      .getToasts()
+      .find((entry) => 'title' in entry && entry.title === 'selected:not-ready')
+    expect(settled && 'type' in settled ? settled.type : undefined).toBe('info')
 
-  it('keeps selected-target thrown send errors undelivered', async () => {
-    const statusPaneKey = makePaneKey(TAB_A, LEAF_A)
-    const onPromptDelivered = vi.fn()
-    harness.sendNotesToActiveAgentSession.mockRejectedValue(new Error('runtime unavailable'))
-    setStore({
-      tabsByWorktree: { 'wt-1': [tab(TAB_A, { title: 'Terminal 1' })] },
-      terminalLayoutsByTabId: { [TAB_A]: leafLayout(LEAF_A, 'pty-a') }
-    })
-    harness.noteTargets = [
-      {
-        paneKey: statusPaneKey,
-        tabId: TAB_A,
-        leafId: LEAF_A,
-        agentType: 'claude',
-        tabTitle: 'Terminal 1',
-        status: 'eligible'
-      }
-    ]
-
-    const tree = render({ onPromptDelivered })
+    harness.sendMessageToAgent.mockRejectedValue(new Error('runtime unavailable'))
+    tree = render({ onPromptDelivered })
     ;(findByType(tree, 'DropdownMenuItem').props.onSelect as () => void)()
     await flushMicrotasks()
 
@@ -749,7 +768,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -761,7 +780,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'disabled',
@@ -770,7 +789,7 @@ describe('ReviewNotesSendMenuContent', () => {
     ]
     ;(findByType(tree, 'DropdownMenuItem').props.onSelect as () => void)()
 
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
     expect(harness.toastMessage).toHaveBeenCalledWith('Agent status is stale')
   })
 
@@ -785,7 +804,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -796,7 +815,7 @@ describe('ReviewNotesSendMenuContent', () => {
     harness.noteTargets = []
     ;(findByType(tree, 'DropdownMenuItem').props.onSelect as () => void)()
 
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
     expect(harness.toastMessage).toHaveBeenCalledWith('Terminal is no longer available')
   })
 
@@ -811,7 +830,7 @@ describe('ReviewNotesSendMenuContent', () => {
       {
         paneKey: statusPaneKey,
         tabId: TAB_A,
-        leafId: LEAF_A,
+        messageTarget: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A },
         agentType: 'claude',
         tabTitle: 'Terminal 1',
         status: 'eligible'
@@ -834,10 +853,10 @@ describe('ReviewNotesSendMenuContent', () => {
     expect(collectText(item)).toContain('Working')
     ;(item.props.onSelect as () => void)()
     await flushMicrotasks()
-    expect(harness.sendNotesToActiveAgentSession).toHaveBeenCalledWith({
+    expect(harness.sendMessageToAgent).toHaveBeenCalledWith({
       worktreeId: 'wt-1',
       prompt: 'my notes',
-      noteTarget: { tabId: TAB_A, leafId: LEAF_A }
+      target: { kind: 'terminal', tabId: TAB_A, leafId: LEAF_A }
     })
   })
 
@@ -847,7 +866,7 @@ describe('ReviewNotesSendMenuContent', () => {
 
     expect(items).toHaveLength(0)
     expect(collectText(tree)).not.toContain('Active agent session')
-    expect(harness.sendNotesToActiveAgentSession).not.toHaveBeenCalled()
+    expect(harness.sendMessageToAgent).not.toHaveBeenCalled()
   })
 
   it('always offers the new-agent launcher', () => {

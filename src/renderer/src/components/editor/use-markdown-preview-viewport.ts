@@ -1,13 +1,11 @@
-import { useCallback, useEffect, type MutableRefObject } from 'react'
+import type { MarkdownPreviewDocument } from './markdown-preview-document-types'
+import type { VirtualMarkdownPreviewNavigation } from './VirtualMarkdownPreviewBody'
+import { useCallback, useEffect, useLayoutEffect, type MutableRefObject } from 'react'
 import { getShortcutPlatform } from '@/lib/shortcut-platform'
 import { resolveMarkdownPreviewAddReviewNoteKey } from './markdown-preview-annotation-shortcut'
 import { cancelMarkdownPreviewEditorRevealFrames } from './markdown-preview-editor-reveal'
-import {
-  applyMarkdownPreviewSearchHighlights,
-  clearMarkdownPreviewSearchHighlights,
-  isMarkdownPreviewFindShortcut,
-  setActiveMarkdownPreviewSearchMatch
-} from './markdown-preview-search'
+import { isMarkdownPreviewFindShortcut } from './markdown-preview-search'
+import { useMarkdownPreviewDomSearch } from './use-markdown-preview-dom-search'
 import type { MarkdownPreviewFoundation } from './use-markdown-preview-foundation'
 import { useMarkdownPreviewAnchorReveal } from './use-markdown-preview-anchor-reveal'
 import { useMarkdownPreviewScrollViewport } from './use-markdown-preview-scroll-viewport'
@@ -25,30 +23,30 @@ export function useMarkdownPreviewViewport({
   scrollCacheKey,
   initialAnchor,
   content,
-  markdownAnnotationsEnabled
+  markdownAnnotationsEnabled,
+  largePreview = false,
+  largeDocument = null,
+  largeNavigationRef
 }: {
   foundation: MarkdownPreviewFoundation
   scrollCacheKey: string
   initialAnchor: string | null
   content: string
+  largePreview?: boolean
+  largeDocument?: MarkdownPreviewDocument | null
+  largeNavigationRef?: MutableRefObject<VirtualMarkdownPreviewNavigation | null>
   markdownAnnotationsEnabled: boolean
 }) {
   const {
     rootRef,
-    bodyRef,
     inputRef,
     matchesRef,
-    searchInstanceRef,
+    lastAppliedInitialAnchorRef,
     pendingEditorRevealFrameIdsRef,
     isSearchOpen,
     setIsSearchOpen,
-    query,
     setQuery,
     matchCount,
-    setMatchCount,
-    searchRevision,
-    setSearchRevision,
-    activeMatchIndex,
     setActiveMatchIndex,
     keybindings,
     activeAnnotationBlockKeyRef,
@@ -56,27 +54,31 @@ export function useMarkdownPreviewViewport({
     reviewNotesCopiedResetTimerRef,
     copiedReviewNoteResetTimerRef,
     reviewNotesCopyMountedRef,
-    attentionReviewCommentTimeoutRef,
-    renderedContent
+    attentionReviewCommentTimeoutRef
   } = foundation
 
   useMarkdownPreviewScrollViewport({
     foundation,
     scrollCacheKey,
-    hasInitialAnchor: initialAnchor !== null
+    hasInitialAnchor: initialAnchor !== null,
+    restorePixels: !largePreview
   })
 
   const moveToMatch = useCallback(
     (direction: 1 | -1) => {
-      if (matchesRef.current.length === 0) {
+      const count = largePreview ? matchCount : matchesRef.current.length
+      if (count === 0) {
         return
+      }
+      if (largePreview) {
+        largeNavigationRef?.current?.search()
       }
       setActiveMatchIndex((cur) => {
         const base = cur >= 0 ? cur : direction === 1 ? -1 : 0
-        return (base + direction + matchesRef.current.length) % matchesRef.current.length
+        return (base + direction + count) % count
       })
     },
-    [matchesRef, setActiveMatchIndex]
+    [largeNavigationRef, largePreview, matchCount, matchesRef, setActiveMatchIndex]
   )
 
   const openSearch = useCallback(() => {
@@ -131,7 +133,30 @@ export function useMarkdownPreviewViewport({
     [cleanupPreviewSurfaceTimers, reviewNotesCopyMountedRef, rootRef]
   )
 
-  const scrollToAnchor = useMarkdownPreviewAnchorReveal({ foundation, initialAnchor, content })
+  // Why: the non-large body is real DOM, so its initial-anchor retry/reassert
+  // lives in the anchor-reveal hook; large previews virtualize the body and
+  // must resolve anchors through the navigation handle instead.
+  const revealAnchor = useMarkdownPreviewAnchorReveal({
+    foundation,
+    initialAnchor: largePreview ? null : initialAnchor,
+    content
+  })
+
+  const scrollToAnchor = useCallback(
+    (rawAnchor: string): boolean => {
+      if (largePreview) {
+        return largeNavigationRef?.current?.anchor(rawAnchor) ?? false
+      }
+      return revealAnchor(rawAnchor)
+    },
+    [largeNavigationRef, largePreview, revealAnchor]
+  )
+
+  const scrollToSourceLine = useCallback(
+    (line: number): boolean =>
+      largePreview ? (largeNavigationRef?.current?.sourceLine(line) ?? false) : false,
+    [largeNavigationRef, largePreview]
+  )
 
   const navigateToTableOfContentsItem = useCallback(
     (id: string): void => {
@@ -140,49 +165,34 @@ export function useMarkdownPreviewViewport({
     [scrollToAnchor]
   )
 
-  useEffect(() => {
-    const body = bodyRef.current
-    if (!body) {
+  useMarkdownPreviewDomSearch(foundation, largePreview)
+
+  // Why: large-preview anchors resolve through the navigation handle, so the
+  // hook's DOM retry above is inert there; retry here until the virtualized
+  // window mounts the anchor's block.
+  useLayoutEffect(() => {
+    if (!largePreview || !initialAnchor || initialAnchor === lastAppliedInitialAnchorRef.current) {
       return
     }
 
-    const instanceId = searchInstanceRef.current
+    let frameId = 0
+    let attempts = 0
 
-    if (!isSearchOpen) {
-      matchesRef.current = []
-      setMatchCount(0)
-      clearMarkdownPreviewSearchHighlights(instanceId)
-      return
+    const tryRevealAnchor = (): void => {
+      if (scrollToAnchor(initialAnchor)) {
+        lastAppliedInitialAnchorRef.current = initialAnchor
+        return
+      }
+
+      attempts += 1
+      if (attempts < 30) {
+        frameId = window.requestAnimationFrame(tryRevealAnchor)
+      }
     }
 
-    const matches = applyMarkdownPreviewSearchHighlights(instanceId, body, query)
-    matchesRef.current = matches
-    setMatchCount(matches.length)
-    setSearchRevision((value) => value + 1)
-    setActiveMatchIndex((cur) =>
-      matches.length === 0 ? -1 : cur >= 0 && cur < matches.length ? cur : 0
-    )
-
-    return () => clearMarkdownPreviewSearchHighlights(instanceId)
-  }, [
-    bodyRef,
-    isSearchOpen,
-    matchesRef,
-    query,
-    renderedContent,
-    searchInstanceRef,
-    setActiveMatchIndex,
-    setMatchCount,
-    setSearchRevision
-  ])
-
-  useEffect(() => {
-    setActiveMarkdownPreviewSearchMatch(
-      searchInstanceRef.current,
-      matchesRef.current,
-      activeMatchIndex
-    )
-  }, [activeMatchIndex, matchCount, matchesRef, searchInstanceRef, searchRevision])
+    tryRevealAnchor()
+    return () => window.cancelAnimationFrame(frameId)
+  }, [content, initialAnchor, largeDocument, largePreview, lastAppliedInitialAnchorRef, scrollToAnchor])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {
@@ -265,6 +275,7 @@ export function useMarkdownPreviewViewport({
     clearCopiedReviewNoteResetTimer,
     setRootRef,
     scrollToAnchor,
+    scrollToSourceLine,
     navigateToTableOfContentsItem
   }
 }

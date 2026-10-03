@@ -10,8 +10,12 @@ import {
 } from './runtime-pane-title-leaf-id'
 import {
   deriveRunningAgentSendTargets,
+  deriveStatuslessStructuredAgentSendTargets,
+  runningAgentMessageTarget,
+  type RunningAgentSendTarget,
   type RunningAgentTargetState
 } from './running-agent-targets'
+import type { AgentMessageTarget } from './agent-message-target'
 
 export type NotesSendAgentTargetState = RunningAgentTargetState &
   Pick<AppState, 'runtimePaneTitlesByTabId'>
@@ -19,7 +23,7 @@ export type NotesSendAgentTargetState = RunningAgentTargetState &
 export type NotesSendAgentTarget = {
   paneKey: string
   tabId: string
-  leafId: string
+  messageTarget: AgentMessageTarget
   agentType: AgentType | null | undefined
   customTitle?: string
   sessionTitle?: string
@@ -64,41 +68,19 @@ function detectTitleHintPaneEvidence(
  *
  * The title hint gates discoverability only. The runtime independently checks
  * current hook/process evidence before any guarded write.
+ *
+ * A chat before its first turn has no status either; it is added here too, since
+ * its composer already takes messages.
  */
 export function deriveNotesSendAgentTargets(
   state: NotesSendAgentTargetState,
   worktreeId: string,
   now = Date.now()
 ): NotesSendAgentTarget[] {
-  const targets: NotesSendAgentTarget[] = deriveRunningAgentSendTargets(state, worktreeId, now).map(
-    (target) => {
-      const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
-      const customTitle = resolveNotesTargetCustomTitle(target.tab)
-      const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
-      // Stale hook rows and permission-flagged rows both keep a live PTY whose
-      // real sendability only the runtime knows; the guarded write re-checks
-      // agent status immediately before accepting bytes, so surface them as
-      // clickable and let the runtime refuse with a toast when truly blocked.
-      const needsRuntimeProbe =
-        target.ptyId !== null &&
-        (target.disabledReason === 'Agent status is stale' ||
-          target.disabledReason === 'Agent needs permission')
-      return {
-        paneKey: target.paneKey,
-        tabId: target.tabId,
-        leafId: target.leafId,
-        agentType,
-        ...(customTitle ? { customTitle } : {}),
-        ...(sessionTitle ? { sessionTitle } : {}),
-        tabTitle: target.tab.title,
-        status: needsRuntimeProbe ? 'eligible' : target.status,
-        ...(needsRuntimeProbe ? { runtimeVerificationRequired: true } : {}),
-        ...(!needsRuntimeProbe && target.disabledReason
-          ? { disabledReason: target.disabledReason }
-          : {})
-      }
-    }
-  )
+  const targets: NotesSendAgentTarget[] = [
+    ...deriveRunningAgentSendTargets(state, worktreeId, now),
+    ...deriveStatuslessStructuredAgentSendTargets(state, worktreeId)
+  ].map(toNotesSendAgentTarget)
 
   for (const tab of state.tabsByWorktree[worktreeId] ?? []) {
     const titleHintTarget = deriveTitleHintAgentTarget(state, tab)
@@ -117,6 +99,44 @@ export function deriveNotesSendAgentTargets(
   }
 
   return targets
+}
+
+function toNotesSendAgentTarget(target: RunningAgentSendTarget): NotesSendAgentTarget {
+  if (target.kind === 'structured-session') {
+    return {
+      paneKey: target.paneKey,
+      tabId: target.tabId,
+      messageTarget: runningAgentMessageTarget(target),
+      agentType: target.agentType,
+      tabTitle: target.title,
+      status: target.status,
+      ...(target.disabledReason ? { disabledReason: target.disabledReason } : {})
+    }
+  }
+
+  const agentType = resolveNotesTargetAgentType(target.entry.agentType, target.tab.launchAgent)
+  const customTitle = resolveNotesTargetCustomTitle(target.tab)
+  const sessionTitle = resolveNotesTargetSessionTitle(target.tab, agentType)
+  // Stale hook rows and permission-flagged rows both keep a live PTY whose
+  // real sendability only the runtime knows; the guarded write re-checks
+  // agent status immediately before accepting bytes, so surface them as
+  // clickable and let the runtime refuse with a toast when truly blocked.
+  const needsRuntimeProbe =
+    target.ptyId !== null &&
+    (target.disabledReason === 'Agent status is stale' ||
+      target.disabledReason === 'Agent needs permission')
+  return {
+    paneKey: target.paneKey,
+    tabId: target.tabId,
+    messageTarget: runningAgentMessageTarget(target),
+    agentType,
+    ...(customTitle ? { customTitle } : {}),
+    ...(sessionTitle ? { sessionTitle } : {}),
+    tabTitle: target.tab.title,
+    status: needsRuntimeProbe ? 'eligible' : target.status,
+    ...(needsRuntimeProbe ? { runtimeVerificationRequired: true } : {}),
+    ...(!needsRuntimeProbe && target.disabledReason ? { disabledReason: target.disabledReason } : {})
+  }
 }
 
 function resolveNotesTargetAgentType(
@@ -178,7 +198,7 @@ function deriveTitleHintAgentTarget(
   return {
     paneKey: makePaneKey(tab.id, leafId),
     tabId: tab.id,
-    leafId,
+    messageTarget: { kind: 'terminal', tabId: tab.id, leafId },
     agentType,
     ...(customTitle ? { customTitle } : {}),
     ...(sessionTitle ? { sessionTitle } : {}),
