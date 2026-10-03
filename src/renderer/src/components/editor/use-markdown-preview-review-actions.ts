@@ -214,8 +214,7 @@ export function useMarkdownPreviewReviewActions({
     (note) => note.id === activeReviewCommentId
   )
   const canGoToPrevious =
-    markdownReviewNotes.length > 0 &&
-    (activeReviewNoteIndex === -1 || activeReviewNoteIndex > 0)
+    markdownReviewNotes.length > 0 && (activeReviewNoteIndex === -1 || activeReviewNoteIndex > 0)
   const canGoToNext =
     markdownReviewNotes.length > 0 &&
     (activeReviewNoteIndex === -1 || activeReviewNoteIndex < markdownReviewNotes.length - 1)

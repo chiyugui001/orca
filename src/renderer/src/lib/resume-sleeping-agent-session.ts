@@ -243,7 +243,8 @@ export function resumeSleepingAgentSessionsForWorktree(
     ? options.onlyPaneKey
     : undefined
   const activeWorktreeRecords = validWorktreeRecords.filter(
-    (record) => !activationTreatsNoteAsFinished(record) || record.paneKey === explicitlyResumedPaneKey
+    (record) =>
+      !activationTreatsNoteAsFinished(record) || record.paneKey === explicitlyResumedPaneKey
   )
   const activeClaimKeys = new Set(activeWorktreeRecords.map(getProviderSessionClaimKey))
   const newestActiveRecordByClaimKey = getNewestActiveRecordsByClaimKey(activeWorktreeRecords)

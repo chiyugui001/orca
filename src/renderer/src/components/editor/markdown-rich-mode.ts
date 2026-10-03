@@ -227,8 +227,7 @@ function preservesEmbeddedHtml(contentWithoutCode: string, roundTripOutput: stri
     const normalized = normalizeDetailsOpeningTag(fragment)
     const exactIndex = haystack.indexOf(fragment, searchIndex)
     // Details serialization adds Orca's class and canonicalizes supported attributes.
-    const normalizedIndex =
-      normalized === fragment ? -1 : haystack.indexOf(normalized, searchIndex)
+    const normalizedIndex = normalized === fragment ? -1 : haystack.indexOf(normalized, searchIndex)
     const useNormalized =
       normalizedIndex !== -1 && (exactIndex === -1 || normalizedIndex < exactIndex)
     const foundIndex = useNormalized ? normalizedIndex : exactIndex

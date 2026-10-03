@@ -194,7 +194,9 @@ export function MarkdownPreviewSurface({
             worktreeId={sourceWorktree.id}
             onCopyNote={reviewActions.handleCopyMarkdownReviewNote}
             onDeleteComment={(commentId) => void deleteDiffComment(sourceWorktree.id, commentId)}
-            onSubmitEdit={(commentId, body) => updateDiffComment(sourceWorktree.id, commentId, body)}
+            onSubmitEdit={(commentId, body) =>
+              updateDiffComment(sourceWorktree.id, commentId, body)
+            }
             onContentResize={requestSyncPositions}
             onDelivered={(notes) =>
               void markDiffCommentsSent(

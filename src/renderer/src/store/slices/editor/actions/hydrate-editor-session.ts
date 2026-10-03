@@ -60,7 +60,9 @@ export function createHydrateEditorSession(
             if (!isMarkdownPreview && legacyFileIndex.hasOwner(pf, worktreeId)) {
               continue
             }
-            const legacyId = isMarkdownPreview ? pf.filePath : legacyFileIndex.resolve(pf, worktreeId)
+            const legacyId = isMarkdownPreview
+              ? pf.filePath
+              : legacyFileIndex.resolve(pf, worktreeId)
             // Why: floating/runtime-owned files need IDs that survive peers disappearing between restarts; collision-based IDs drift when the path is no longer open elsewhere.
             const ownedId = buildOwnedEditorFileId(pf.filePath, worktreeId, pf.runtimeEnvironmentId)
             const key = ownerKey(worktreeId, pf.runtimeEnvironmentId)

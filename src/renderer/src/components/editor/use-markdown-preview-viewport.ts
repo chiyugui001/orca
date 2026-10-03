@@ -192,7 +192,14 @@ export function useMarkdownPreviewViewport({
 
     tryRevealAnchor()
     return () => window.cancelAnimationFrame(frameId)
-  }, [content, initialAnchor, largeDocument, largePreview, lastAppliedInitialAnchorRef, scrollToAnchor])
+  }, [
+    content,
+    initialAnchor,
+    largeDocument,
+    largePreview,
+    lastAppliedInitialAnchorRef,
+    scrollToAnchor
+  ])
 
   useEffect(() => {
     const handleKeyDown = (event: KeyboardEvent): void => {

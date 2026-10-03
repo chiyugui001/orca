@@ -135,7 +135,9 @@ function toNotesSendAgentTarget(target: RunningAgentSendTarget): NotesSendAgentT
     tabTitle: target.tab.title,
     status: needsRuntimeProbe ? 'eligible' : target.status,
     ...(needsRuntimeProbe ? { runtimeVerificationRequired: true } : {}),
-    ...(!needsRuntimeProbe && target.disabledReason ? { disabledReason: target.disabledReason } : {})
+    ...(!needsRuntimeProbe && target.disabledReason
+      ? { disabledReason: target.disabledReason }
+      : {})
   }
 }
 

@@ -15,11 +15,7 @@ export function useMarkdownPreviewAnnotationRenderers({
   reviewActions: MarkdownPreviewReviewActions
   markdownAnnotationsEnabled: boolean
 }) {
-  const {
-    sourceWorktree,
-    sourceRelativePath,
-    setActiveAnnotationBlockKey
-  } = foundation
+  const { sourceWorktree, sourceRelativePath, setActiveAnnotationBlockKey } = foundation
   const { handleAnnotatedMarkdownBlockClick } = reviewActions
 
   const renderAnnotationControls = useCallback(
@@ -52,12 +48,7 @@ export function useMarkdownPreviewAnnotationRenderers({
         </div>
       )
     },
-    [
-      markdownAnnotationsEnabled,
-      setActiveAnnotationBlockKey,
-      sourceRelativePath,
-      sourceWorktree
-    ]
+    [markdownAnnotationsEnabled, setActiveAnnotationBlockKey, sourceRelativePath, sourceWorktree]
   )
 
   const wrapAnnotatedBlock = useCallback(

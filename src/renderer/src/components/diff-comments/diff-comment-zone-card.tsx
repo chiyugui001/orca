@@ -52,10 +52,7 @@ export type DiffCommentZoneCardContext = {
   resizeZone: (commentId: string) => void
   onDeleteCommentRef: RefObject<(commentId: string) => void>
   onUpdateCommentRef: RefObject<((commentId: string, body: string) => Promise<boolean>) | undefined>
-  markDiffCommentsSent: (
-    worktreeId: string,
-    commentIds: readonly string[]
-  ) => Promise<boolean>
+  markDiffCommentsSent: (worktreeId: string, commentIds: readonly string[]) => Promise<boolean>
 }
 
 export function renderDiffCommentZoneCard(
@@ -111,7 +108,10 @@ export function renderDiffCommentZoneCard(
               triggerClassName="orca-diff-comment-edit"
               disabledTooltip="Note already sent"
               onDelivered={(notes) =>
-                void markDiffCommentsSent(worktreeId, notes.map((note) => note.id))
+                void markDiffCommentsSent(
+                  worktreeId,
+                  notes.map((note) => note.id)
+                )
               }
             />
           ) : null
