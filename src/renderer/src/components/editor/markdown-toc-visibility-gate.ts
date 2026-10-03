@@ -1,7 +1,7 @@
 import { buildMarkdownTableOfContents, type MarkdownTocItem } from './markdown-table-of-contents'
 
-// Why: the TOC panel is closed by default, so a single stable empty array lets
-// the editor's memo skip the full-document remark parse while keeping a constant
+// Why: the TOC panel is open by default, but the gate still skips the parse
+// for files where the user collapsed it, keeping a constant empty-array
 // reference (no spurious downstream renders) until the panel actually opens.
 const EMPTY_MARKDOWN_TOC: MarkdownTocItem[] = []
 

@@ -316,8 +316,9 @@ function EditorPanelInner({
   // Why: front-matter shows by default; the map only carries per-file hide overrides.
   const isMarkdownFrontmatterVisible =
     markdownFrontmatterVisible[markdownDocumentStateFileId] ?? true
+  // Why: the table of contents shows by default; the map only carries per-file hide overrides.
   const isMarkdownTableOfContentsVisible =
-    markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? false
+    markdownTableOfContentsVisible[markdownDocumentStateFileId] ?? true
   const createActiveMarkdownArtifactRequest = () =>
     Promise.resolve(
       createCurrentMarkdownArtifactRequest(

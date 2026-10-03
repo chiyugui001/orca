@@ -97,7 +97,7 @@ describe('restored editor owner reparent', () => {
     state.setMarkdownViewMode(oldId, 'rich')
     state.setEditorViewMode(oldId, 'changes')
     state.setMarkdownFrontmatterVisible(oldId, false)
-    state.setMarkdownTableOfContentsVisible(oldId, true)
+    state.setMarkdownTableOfContentsVisible(oldId, false)
     useAppStore.setState((current) => ({
       pendingEditorReveal: {
         fileId: oldId,
@@ -153,7 +153,7 @@ describe('restored editor owner reparent', () => {
     expect(next.markdownViewMode[result.fileId]).toBe('rich')
     expect(next.editorViewMode[result.fileId]).toBe('changes')
     expect(next.markdownFrontmatterVisible[result.fileId]).toBe(false)
-    expect(next.markdownTableOfContentsVisible[result.fileId]).toBe(true)
+    expect(next.markdownTableOfContentsVisible[result.fileId]).toBe(false)
     expect(next.openFiles.find((file) => file.mode === 'markdown-preview')).toMatchObject({
       id: `markdown-preview::${result.fileId}`,
       markdownPreviewSourceFileId: result.fileId,

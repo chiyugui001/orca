@@ -96,7 +96,7 @@ describe('createEditorSlice markdown view state', () => {
       { preview: true }
     )
     store.getState().setMarkdownFrontmatterVisible('/repo/docs/README.md', false)
-    store.getState().setMarkdownTableOfContentsVisible('/repo/docs/README.md', true)
+    store.getState().setMarkdownTableOfContentsVisible('/repo/docs/README.md', false)
 
     store.getState().openDiff('wt-1', '/repo/docs/guide.md', 'docs/guide.md', 'markdown', false, {
       preview: true
@@ -126,7 +126,7 @@ describe('createEditorSlice markdown view state', () => {
       language: 'markdown'
     })
     store.getState().setMarkdownFrontmatterVisible('/repo/docs/README.md', false)
-    store.getState().setMarkdownTableOfContentsVisible('/repo/docs/README.md', true)
+    store.getState().setMarkdownTableOfContentsVisible('/repo/docs/README.md', false)
 
     store.getState().openDiff('wt-1', '/repo/docs/guide.md', 'docs/guide.md', 'markdown', false, {
       preview: true
@@ -136,7 +136,7 @@ describe('createEditorSlice markdown view state', () => {
       '/repo/docs/README.md': false
     })
     expect(store.getState().markdownTableOfContentsVisible).toEqual({
-      '/repo/docs/README.md': true
+      '/repo/docs/README.md': false
     })
   })
 })
@@ -309,21 +309,30 @@ describe('createEditorSlice markdown frontmatter visibility (#4468)', () => {
 })
 
 describe('createEditorSlice markdown table of contents visibility', () => {
-  it('stores visible=true as an explicit entry keyed by fileId', () => {
+  it('stores hidden=false as an explicit entry keyed by fileId', () => {
     const store = createEditorStore()
-
-    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
-
-    expect(store.getState().markdownTableOfContentsVisible).toEqual({ '/repo/notes.md': true })
-  })
-
-  it('deletes the entry when visibility resets to hidden', () => {
-    const store = createEditorStore()
-    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
 
     store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', false)
 
+    expect(store.getState().markdownTableOfContentsVisible).toEqual({ '/repo/notes.md': false })
+  })
+
+  it('deletes the entry when visibility resets to visible', () => {
+    const store = createEditorStore()
+    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', false)
+
+    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
+
     expect(store.getState().markdownTableOfContentsVisible).toEqual({})
+  })
+
+  it('is a no-op when showing a file that was never hidden', () => {
+    const store = createEditorStore()
+    const before = store.getState().markdownTableOfContentsVisible
+
+    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
+
+    expect(store.getState().markdownTableOfContentsVisible).toBe(before)
   })
 
   it('drops the visibility flag when replacing a preview tab', () => {
@@ -338,7 +347,7 @@ describe('createEditorSlice markdown table of contents visibility', () => {
       },
       { preview: true }
     )
-    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
+    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', false)
 
     store.getState().openFile(
       {
@@ -369,11 +378,11 @@ describe('createEditorSlice markdown table of contents visibility', () => {
       worktreeId: 'wt-1',
       language: 'markdown'
     })
-    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', true)
+    store.getState().setMarkdownTableOfContentsVisible('/repo/notes.md', false)
 
     store.getState().closeFile('/repo/notes.md')
 
-    expect(store.getState().markdownTableOfContentsVisible).toEqual({ '/repo/notes.md': true })
+    expect(store.getState().markdownTableOfContentsVisible).toEqual({ '/repo/notes.md': false })
 
     store.getState().closeFile('markdown-preview::/repo/notes.md')
 

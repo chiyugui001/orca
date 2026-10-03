@@ -130,7 +130,8 @@ export function createEditorDraftState(set: EditorSet, _get: EditorGet): EditorD
     markdownTableOfContentsVisible: {},
     setMarkdownTableOfContentsVisible: (fileId, visible) =>
       set((s) => {
-        if (!visible) {
+        // Why: don't persist the default value; delete instead so the map carries only overrides and hydration round-trips cleanly.
+        if (visible) {
           if (!(fileId in s.markdownTableOfContentsVisible)) {
             return s
           }
@@ -139,10 +140,7 @@ export function createEditorDraftState(set: EditorSet, _get: EditorGet): EditorD
           return { markdownTableOfContentsVisible: next }
         }
         return {
-          markdownTableOfContentsVisible: {
-            ...s.markdownTableOfContentsVisible,
-            [fileId]: true
-          }
+          markdownTableOfContentsVisible: { ...s.markdownTableOfContentsVisible, [fileId]: false }
         }
       }),
 
