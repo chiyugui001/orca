@@ -1,51 +1,11 @@
-import { z } from 'zod'
-import { defineMethod, type RpcMethod } from '../core'
-import { requiredString } from '../schemas'
+import { defineMethod } from '../core'
+import { DeleteMRComment, ReplyMRDiscussion } from '../../../../shared/rpc-contract/gitlab-params'
 
-const RepoSelector = z.object({
-  repo: requiredString('Missing repo selector')
-})
-
-const GitLabProjectRef = z
-  .object({
-    host: requiredString('Missing GitLab host'),
-    path: requiredString('Missing GitLab project path')
-  })
-  .nullish()
-
-const ResolveMRDiscussion = RepoSelector.extend({
-  iid: z.number().int().positive(),
-  discussionId: requiredString('Discussion id is required'),
-  resolved: z.boolean(),
-  projectRef: GitLabProjectRef
-})
-
-const ReplyMRDiscussion = RepoSelector.extend({
-  iid: z.number().int().positive(),
-  discussionId: requiredString('Discussion id is required'),
-  body: requiredString('Comment body is required'),
-  projectRef: GitLabProjectRef
-})
-
-const DeleteMRComment = RepoSelector.extend({
-  iid: z.number().int().positive(),
-  noteId: z.number().int().positive(),
-  projectRef: GitLabProjectRef
-})
-
-export const GITLAB_MERGE_REQUEST_DISCUSSION_METHODS: RpcMethod[] = [
-  defineMethod({
-    name: 'gitlab.resolveMRDiscussion',
-    params: ResolveMRDiscussion,
-    handler: async (params, { runtime }) =>
-      runtime.resolveGitLabRepoMRDiscussion(
-        params.repo,
-        params.iid,
-        params.discussionId,
-        params.resolved,
-        params.projectRef
-      )
-  }),
+// Why: upstream owns gitlab.resolveMRDiscussion; these two mutations remain
+// fork-specific (reply to a discussion thread, delete an MR note). The array is
+// un-annotated so each defineMethod keeps its literal method name for the
+// rpc-params-type-parity gate.
+export const GITLAB_MERGE_REQUEST_DISCUSSION_METHODS = [
   defineMethod({
     name: 'gitlab.replyMRDiscussion',
     params: ReplyMRDiscussion,

@@ -22,6 +22,7 @@ import {
   WorkItemDetails,
   WorkItemsList
 } from '../../../../shared/rpc-contract/gitlab-params'
+// Why: fork adds reply/delete MR discussion mutations on top of upstream's set.
 import { GITLAB_MERGE_REQUEST_DISCUSSION_METHODS } from './gitlab-merge-request-discussion-methods'
 
 export const GITLAB_METHODS = [

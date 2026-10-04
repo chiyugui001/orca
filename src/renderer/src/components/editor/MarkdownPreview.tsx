@@ -83,8 +83,6 @@ export default function MarkdownPreview({
   const annotationRenderers = useMarkdownPreviewAnnotationRenderers({
     foundation: { ...foundation, renderedContent: displayedContent },
     reviewActions,
-    filePath,
-    content: displayedContent,
     markdownAnnotationsEnabled
   })
   const components = useMarkdownPreviewComponents({

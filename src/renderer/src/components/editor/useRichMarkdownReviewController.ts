@@ -60,18 +60,15 @@ export function useRichMarkdownReviewController({
   const markdownCommentsRef = useRef<DiffComment[]>([])
   const markdownSourceLineOffsetRef = useRef(markdownSourceLineOffset)
   const annotationTargetFrameRef = useRef<number | null>(null)
-  const {
-    canAnnotateRichMarkdown,
-    markdownComments,
-    markdownReviewNotes,
-    sourceRelativePath
-  } = useRichMarkdownReviewData({
-    allDiffComments,
-    filePath,
-    markdownAnnotationFilePath,
-    markdownAnnotationsEnabled,
-    worktreeRoot
-  })
+  const { canAnnotateRichMarkdown, markdownComments, markdownReviewNotes, sourceRelativePath } =
+    useRichMarkdownReviewData({
+      allDiffComments,
+      filePath,
+      markdownAnnotationFilePath,
+      markdownAnnotationsEnabled,
+      markdownReviewContent,
+      worktreeRoot
+    })
 
   annotationPopoverRef.current = annotationPopover
   canAnnotateRichMarkdownRef.current = canAnnotateRichMarkdown

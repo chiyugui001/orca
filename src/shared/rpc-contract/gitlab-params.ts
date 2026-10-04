@@ -122,6 +122,19 @@ export const ResolveMRDiscussion = RepoSelector.extend({
   projectRef: GitLabProjectRef
 })
 
+export const ReplyMRDiscussion = RepoSelector.extend({
+  iid: z.number().int().positive(),
+  discussionId: requiredString('Discussion id is required'),
+  body: requiredString('Comment body is required'),
+  projectRef: GitLabProjectRef
+})
+
+export const DeleteMRComment = RepoSelector.extend({
+  iid: z.number().int().positive(),
+  noteId: z.number().int().positive(),
+  projectRef: GitLabProjectRef
+})
+
 export const JobTrace = RepoSelector.extend({
   jobId: z.number().int().positive(),
   projectRef: GitLabProjectRef,

@@ -1,10 +1,7 @@
 import type { AppState } from '@/store/types'
 import { AGENT_STATUS_STALE_AFTER_MS } from '../../../shared/agent-status-types'
 import type { SleepingAgentSessionRecord } from '../../../shared/agent-session-resume'
-import {
-  getProviderSessionClaimKey,
-  recordPaneHasLivePty
-} from './sleeping-agent-pane-ownership'
+import { getProviderSessionClaimKey, recordPaneHasLivePty } from './sleeping-agent-pane-ownership'
 import type { WorkspaceTerminalHostAuthority } from './workspace-terminal-host-authority'
 
 export type SleepingNotesSendTarget = {
@@ -62,8 +59,9 @@ export function deriveSleepingNotesSendTargets(
 }
 
 function isSendableSleepingRecord(record: SleepingAgentSessionRecord): boolean {
-  if (record.automaticResumeBlockedBy) {
-    return false
-  }
-  return record.state === 'done' || record.capturedAt - record.updatedAt <= AGENT_STATUS_STALE_AFTER_MS
+  // Why: upstream withdrew automaticResumeBlockedBy — formerly blocked panes are
+  // now resumable, so nothing excludes them from note-send targets anymore.
+  return (
+    record.state === 'done' || record.capturedAt - record.updatedAt <= AGENT_STATUS_STALE_AFTER_MS
+  )
 }
